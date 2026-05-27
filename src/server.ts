@@ -20,6 +20,7 @@ import adminRoutes from './routes/admin';
 import hrmsRoutes from './routes/hrms';
 import careersRoutes from './routes/careers';
 import cmAuthRoutes from './callmaster/routes/cmAuthRoutes';
+import ceoRoutes from './callmaster/routes/ceoRoutes';
 import { pingDb } from './config/db';
 
 const app = express();
@@ -72,6 +73,7 @@ app.use('/api/careers', careersRoutes);
 
 // Call Master Dashboard
 app.use('/api/callmaster/auth', cmAuthRoutes);
+app.use('/api/callmaster/ceo', ceoRoutes);
 app.use('/callmaster', express.static(path.join(__dirname, '..', 'public', 'callmaster')));
 
 const port = Number(process.env.PORT || 5050);
