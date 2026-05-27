@@ -2,6 +2,7 @@
 import db from '../../config/db';
 import { getAnalystLeaderboard, getTniHeatmap } from '../repositories/unifiedKpiRepo';
 import { presetToDateRange, safeScopeFilter, Preset } from '../repositories/baseRepository';
+import { getCoachingList, generateCoachingContent, assignCoaching } from '../../services/coachingAIService';
 
 interface Scope { branchIds: string[]; processIds: string[]; }
 
@@ -191,4 +192,31 @@ export async function tqSlaTracker(scope: Scope) {
     GROUP BY assigned_to, process_name
     ORDER BY sla_pct ASC
   `, pParams);
+}
+
+export async function tqCoachingLibrary(params: { page: number; limit: number }) {
+  return getCoachingList({ page: params.page, limit: params.limit });
+}
+
+export async function tqGenerateCoaching(params: {
+  defect_parameter: string;
+  process_name: string;
+  coaching_title: string;
+  generatedBy: number;
+}) {
+  return generateCoachingContent({
+    defect_parameter: params.defect_parameter,
+    process_name: params.process_name,
+    client_id: '',
+    transcript_excerpts: [],
+    created_by_user_id: params.generatedBy,
+  });
+}
+
+export async function tqAssignCoaching(params: {
+  coachingId: number;
+  employeeCodes: string[];
+  assignedBy: number;
+}) {
+  return assignCoaching(params.coachingId, params.employeeCodes, params.assignedBy);
 }

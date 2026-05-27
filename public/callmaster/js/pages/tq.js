@@ -272,6 +272,64 @@ const TQ_PAGES = {
         { emptyMsg: 'No pending disputes' }
       )}`;
   },
+
+  'tq-coaching-library': async function(preset) {
+    const r = await CALLMASTER_API.get('/api/callmaster/tq/coaching');
+    const d = r.data || {};
+    const items = Array.isArray(d) ? d : (d.data || []);
+    return `
+      ${pageHeader('Coaching Library', items.length + ' modules')}
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <button onclick="go('tq-coaching-generate')" class="badge badge-blue" style="cursor:pointer;border:none;padding:6px 14px;font-size:13px">+ Generate New</button>
+      </div>
+      ${items.length === 0 ? emptyState('No coaching content yet') : table(
+        [
+          { key: 'coaching_id',      label: 'ID',         render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'coaching_title',   label: 'Title' },
+          { key: 'defect_parameter', label: 'Defect Area' },
+          { key: 'coaching_body',    label: 'Content',    render: v => v ? `<span style="max-width:280px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${String(v).replace(/"/g,'&quot;')}">${v}</span>` : '—' },
+          { key: 'generated_by',     label: 'Source',     render: v => `<span class="badge badge-${v==='AI'?'violet':'blue'}">${v||'Manual'}</span>` },
+          { key: '_assign',          label: '',           render: (_, row) => `<button class="badge badge-green" style="cursor:pointer;border:none;padding:4px 10px" onclick="openAssignModal(${row.coaching_id})">Assign</button>` },
+        ],
+        items
+      )}
+      <div id="assignModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:28px;width:440px;max-width:90vw">
+          <div style="font-size:16px;font-weight:600;margin-bottom:16px;color:#f1f5f9">Assign Coaching</div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:4px">Employee Codes (comma-separated)</label>
+            <input id="assignEmpCodes" type="text" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px;color:#f1f5f9;font-size:13px" placeholder="EMP001, EMP002, EMP003" />
+          </div>
+          <div id="assignError" style="color:#f87171;font-size:12px;margin-bottom:12px;display:none"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button onclick="document.getElementById('assignModal').style.display='none'" style="background:#334155;border:none;border-radius:6px;padding:8px 16px;color:#94a3b8;cursor:pointer">Cancel</button>
+            <button onclick="doAssignCoaching()" style="background:#2563eb;border:none;border-radius:6px;padding:8px 16px;color:#fff;cursor:pointer;font-weight:600">Assign</button>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  'tq-coaching-generate': async function(preset) {
+    return `
+      ${pageHeader('Generate Coaching', 'AI-powered coaching content creation')}
+      <div class="card" style="max-width:560px">
+        <div style="margin-bottom:16px">
+          <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:4px">Defect Parameter *</label>
+          <input id="genDefectParam" type="text" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px;color:#f1f5f9;font-size:13px" placeholder="e.g. Objection Handling, Call Closure" />
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:4px">Process Name *</label>
+          <input id="genProcessName" type="text" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px;color:#f1f5f9;font-size:13px" placeholder="e.g. GNC Inbound" />
+        </div>
+        <div style="margin-bottom:20px">
+          <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:4px">Coaching Title (optional)</label>
+          <input id="genTitle" type="text" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px;color:#f1f5f9;font-size:13px" placeholder="Auto-filled from defect parameter if blank" />
+        </div>
+        <div id="genError" style="color:#f87171;font-size:12px;margin-bottom:12px;display:none"></div>
+        <div id="genSuccess" style="color:#4ade80;font-size:12px;margin-bottom:12px;display:none"></div>
+        <button onclick="doGenerateCoaching()" style="background:#2563eb;border:none;border-radius:8px;padding:10px 20px;color:#fff;cursor:pointer;font-weight:600;font-size:14px">Generate Coaching Content</button>
+      </div>`;
+  },
 };
 
 async function resolveFeedback(feedbackId, resolution) {
@@ -284,5 +342,46 @@ async function resolveFeedback(feedbackId, resolution) {
     go('tq-feedback-queue');
   } else {
     alert('Failed: ' + (r.error || 'Unknown error'));
+  }
+}
+
+function openAssignModal(coachingId) {
+  window._assignCoachingId = coachingId;
+  document.getElementById('assignEmpCodes').value = '';
+  document.getElementById('assignError').style.display = 'none';
+  document.getElementById('assignModal').style.display = 'flex';
+}
+
+async function doAssignCoaching() {
+  const raw = document.getElementById('assignEmpCodes').value.trim();
+  const errEl = document.getElementById('assignError');
+  if (!raw) { errEl.textContent = 'Enter at least one employee code.'; errEl.style.display = 'block'; return; }
+  const employee_codes = raw.split(',').map(s => s.trim()).filter(Boolean);
+  errEl.style.display = 'none';
+  const r = await CALLMASTER_API.post('/api/callmaster/tq/coaching/' + window._assignCoachingId + '/assign', { employee_codes });
+  if (r.success) {
+    document.getElementById('assignModal').style.display = 'none';
+    alert('Coaching assigned to ' + employee_codes.length + ' agent(s).');
+  } else {
+    errEl.textContent = r.error || 'Failed to assign coaching.';
+    errEl.style.display = 'block';
+  }
+}
+
+async function doGenerateCoaching() {
+  const defect_parameter = document.getElementById('genDefectParam').value.trim();
+  const process_name = document.getElementById('genProcessName').value.trim();
+  const coaching_title = document.getElementById('genTitle').value.trim();
+  const errEl = document.getElementById('genError');
+  const okEl = document.getElementById('genSuccess');
+  errEl.style.display = 'none'; okEl.style.display = 'none';
+  if (!defect_parameter || !process_name) { errEl.textContent = 'Defect parameter and process name are required.'; errEl.style.display = 'block'; return; }
+  const r = await CALLMASTER_API.post('/api/callmaster/tq/coaching/generate', { defect_parameter, process_name, coaching_title });
+  if (r.success) {
+    okEl.textContent = 'Coaching content generated! Go to Coaching Library to view and assign.';
+    okEl.style.display = 'block';
+  } else {
+    errEl.textContent = r.error || 'Failed to generate coaching.';
+    errEl.style.display = 'block';
   }
 }

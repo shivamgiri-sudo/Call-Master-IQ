@@ -149,6 +149,16 @@ export async function submitFeedback(params: {
   return { feedback_id: (result as any).insertId };
 }
 
+import { getMyAssignments, updateAssignmentStatus } from '../../services/coachingAIService';
+
+export async function myCoachingAssignments(params: { employeeCode: string; page: number; limit: number }) {
+  return getMyAssignments(params.employeeCode, params.page, params.limit);
+}
+
+export async function updateMyAssignmentStatus(assignmentId: number, status: 'viewed' | 'completed') {
+  return updateAssignmentStatus(assignmentId, status);
+}
+
 export async function myCallDetail(sourceType: string, callId: string, employeeCode: string, role: string) {
   if (role === 'analyst') {
     const check = await q<any>(`SELECT agent_employee_code FROM v_call_master_unified_kpi WHERE source_call_id = ? LIMIT 1`, [callId]);

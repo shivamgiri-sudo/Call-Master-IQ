@@ -96,4 +96,49 @@ router.post('/coaching-notes', async (req, res): Promise<void> => {
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// GET coaching library (all coaching_content)
+router.get('/coaching', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 30;
+    const data = await quality.tqCoachingLibrary({ page, limit });
+    res.json({ success: true, data });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST generate AI coaching content
+router.post('/coaching/generate', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.cm!;
+    const { defect_parameter, process_name, coaching_title } = req.body;
+    if (!defect_parameter || !process_name) {
+      res.status(400).json({ success: false, error: 'defect_parameter and process_name are required' });
+      return;
+    }
+    const data = await quality.tqGenerateCoaching({ defect_parameter, process_name, coaching_title: coaching_title || defect_parameter, generatedBy: user.user_id });
+    res.json({ success: true, data });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST assign coaching content to agents
+router.post('/coaching/:id/assign', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.cm!;
+    const coachingId = Number(req.params.id);
+    const { employee_codes } = req.body;
+    if (!Array.isArray(employee_codes) || employee_codes.length === 0) {
+      res.status(400).json({ success: false, error: 'employee_codes array required' });
+      return;
+    }
+    const data = await quality.tqAssignCoaching({ coachingId, employeeCodes: employee_codes, assignedBy: user.user_id });
+    res.json({ success: true, data });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;

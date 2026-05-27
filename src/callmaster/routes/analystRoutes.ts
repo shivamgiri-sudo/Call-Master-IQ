@@ -51,4 +51,33 @@ router.post('/feedback', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// GET coaching assignments for this analyst
+router.get('/coaching-assignments', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.cm!;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const data = await analyst.myCoachingAssignments({ employeeCode: user.employee_code || '', page, limit });
+    res.json({ success: true, data });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH coaching assignment status (viewed / completed)
+router.patch('/coaching-assignments/:id/status', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const assignmentId = Number(req.params.id);
+    const { status } = req.body;
+    if (!status || !['viewed', 'completed'].includes(status)) {
+      res.status(400).json({ success: false, error: 'status must be viewed or completed' });
+      return;
+    }
+    await analyst.updateMyAssignmentStatus(assignmentId, status as 'viewed' | 'completed');
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;

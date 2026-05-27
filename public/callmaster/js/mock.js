@@ -288,6 +288,18 @@ const _MOCK_ROUTES = {
     { feedback_id: 2, source_call_id: 'OB-5512', source_type: 'Outbound', analyst_name: 'Deepak Verma',  feedback_text: 'Objection handling parameter was marked wrong', evidence_notes: '', feedback_status: 'pending', created_at: '2026-05-25T14:30:00' },
   ]),
   '/api/callmaster/tq/feedback/:id/resolve': () => ({}),
+  '/api/callmaster/analyst/coaching-assignments': () => ([
+    { assignment_id: 1, coaching_id: 1, coaching_title: 'Improving Objection Handling',   defect_parameter: 'Objection Handling', coaching_body: 'When a customer objects to price, acknowledge their concern, then redirect to value...', completion_status: 'pending' },
+    { assignment_id: 2, coaching_id: 2, coaching_title: 'Call Closure Best Practices',    defect_parameter: 'Call Closure',       coaching_body: 'Always summarize the resolution, confirm customer satisfaction, and invite feedback...', completion_status: 'viewed' },
+  ]),
+  '/api/callmaster/analyst/coaching-assignments/:id/status': () => ({}),
+  '/api/callmaster/tq/coaching': () => ([
+    { coaching_id: 1, coaching_title: 'Improving Objection Handling',   defect_parameter: 'Objection Handling', coaching_body: 'When a customer objects...', generated_by: 'AI' },
+    { coaching_id: 2, coaching_title: 'Call Closure Best Practices',    defect_parameter: 'Call Closure',       coaching_body: 'Always summarize...',         generated_by: 'AI' },
+    { coaching_id: 3, coaching_title: 'Compliance Script Adherence',    defect_parameter: 'Compliance',         coaching_body: 'Follow the compliance script at all times...', generated_by: 'Manual' },
+  ]),
+  '/api/callmaster/tq/coaching/generate': () => ({ coaching_id: 4, coaching_title: 'New Coaching', defect_parameter: 'Professionalism', coaching_body: 'Generated content...' }),
+  '/api/callmaster/tq/coaching/:id/assign': () => ({ assigned_count: 2 }),
   '/api/callmaster/analyst/call/:id':      (b, url) => {
     const qs    = url ? url.split('?')[1] || '' : '';
     const stParam = new URLSearchParams(qs).get('sourceType') || 'Inbound';

@@ -68,6 +68,8 @@ const NAV_CONFIG = {
     { label: 'Parameter Drift',   page: 'tq-parameter-drift',  icon: '📉' },
     { label: 'SLA Tracker',       page: 'tq-sla-tracker',      icon: '✅' },
     { label: 'Feedback Queue',    page: 'tq-feedback-queue',   icon: '📝' },
+    { label: 'Coaching Library',  page: 'tq-coaching-library', icon: '📚' },
+    { label: 'Generate Coaching', page: 'tq-coaching-generate',icon: '🤖' },
   ],
   branch_manager: [
     { label: 'Branch Health',     page: 'bm-health',            icon: '💪' },

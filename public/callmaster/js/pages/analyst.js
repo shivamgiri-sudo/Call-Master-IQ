@@ -296,62 +296,32 @@ const ANALYST_PAGES = {
       </div>`;
   },
 
-  'analyst-coaching': async function() {
-    const r = await CALLMASTER_API.get('/api/callmaster/analyst/coaching');
+  'analyst-coaching': async function(preset) {
+    const r = await CALLMASTER_API.get('/api/callmaster/analyst/coaching-assignments');
     const d = r.data || {};
-
-    // Real API: flat array, mock: { sessions: [...] }
-    const sessions = Array.isArray(d) ? d : (d.sessions || []);
-
-    function statusBadgeClass(status) {
-      const s = (status || '').toLowerCase();
-      if (s === 'completed' || s === 'closed') return 'badge-green';
-      if (s === 'open' || s === 'pending')     return 'badge-yellow';
-      return 'badge-gray';
-    }
-
-    function priorityBadgeClass(priority) {
-      const p = (priority || '').toLowerCase();
-      if (p === 'high')   return 'badge-red';
-      if (p === 'medium') return 'badge-yellow';
-      return 'badge-gray';
-    }
-
-    if (sessions.length === 0) {
-      return `
-        ${pageHeader('Coaching Notes', 'Your personal coaching sessions')}
-        ${emptyState('No coaching sessions found.')}`;
-    }
-
-    const cards = sessions.map(s => {
-      const title   = s.title || s.coaching_title || 'Coaching Session';
-      const status  = s.status  || 'Open';
-      const notes   = s.notes   || '—';
-      const coach   = s.coach   || s.coach_name || '—';
-      const date    = s.created_at || s.date ? new Date(s.created_at || s.date).toLocaleDateString() : '—';
-      const priority = s.priority || '';
-
-      return `<div class="card" style="margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
-          <div style="font-weight:600;font-size:14px;color:#e2e8f0">${title}</div>
-          <div style="display:flex;gap:6px;align-items:center">
-            ${priority ? `<span class="badge ${priorityBadgeClass(priority)}">${priority}</span>` : ''}
-            <span class="badge ${statusBadgeClass(status)}">${status}</span>
-          </div>
-        </div>
-        <div style="font-size:13px;color:#94a3b8;margin-bottom:12px;line-height:1.5">${notes}</div>
-        <div style="font-size:12px;color:#64748b;display:flex;gap:16px">
-          <span>Coach: <strong style="color:#94a3b8">${coach}</strong></span>
-          <span>Date: <strong style="color:#94a3b8">${date}</strong></span>
-        </div>
-      </div>`;
-    }).join('');
-
+    const items = Array.isArray(d) ? d : (d.data || []);
     return `
-      ${pageHeader('Coaching Notes', sessions.length + ' coaching session' + (sessions.length !== 1 ? 's' : ''))}
-      ${cards}`;
+      ${pageHeader('My Coaching', items.length + ' assigned modules')}
+      ${items.length === 0 ? emptyState('No coaching assignments yet') : table(
+        [
+          { key: 'coaching_title',     label: 'Title' },
+          { key: 'defect_parameter',   label: 'Defect Area' },
+          { key: 'coaching_body',      label: 'Content',       render: v => v ? `<span style="max-width:300px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${String(v).replace(/"/g,'&quot;')}">${v}</span>` : '—' },
+          { key: 'completion_status',  label: 'Status',        render: v => `<span class="badge badge-${v==='completed'?'green':v==='viewed'?'blue':'yellow'}">${v||'pending'}</span>` },
+          { key: '_actions',           label: '',              render: (_, row) => row.completion_status !== 'completed' ? `<button class="badge badge-blue" style="cursor:pointer;border:none;padding:4px 10px" onclick="markCoaching(${row.assignment_id},'${row.completion_status==='pending'?'viewed':'completed'}')">Mark ${row.completion_status==='pending'?'Viewed':'Complete'}</button>` : '' },
+        ],
+        items
+      )}`;
   },
 };
+
+async function markCoaching(assignmentId, status) {
+  const r = await CALLMASTER_API.request('/api/callmaster/analyst/coaching-assignments/' + assignmentId + '/status', {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+  if (r.success) go('analyst-coaching');
+}
 
 function openDisputeModal(callId, sourceType) {
   window._disputeCallId = callId;
