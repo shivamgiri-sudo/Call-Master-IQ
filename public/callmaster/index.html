@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Call Master — Intelligence Dashboard</title>
+  <link rel="stylesheet" href="/callmaster/css/design-system.css" />
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.49.0/dist/apexcharts.min.js"></script>
+</head>
+<body>
+
+<!-- ── Login overlay ── -->
+<div id="loginOverlay">
+  <div class="login-card">
+    <div class="login-title">Call Master</div>
+    <div class="login-sub">Intelligence Dashboard · Sign in to continue</div>
+    <div class="form-group">
+      <label class="form-label" for="loginUsername">Username</label>
+      <input class="form-input" id="loginUsername" type="text" autocomplete="username" placeholder="Enter username" />
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="loginPassword">Password</label>
+      <input class="form-input" id="loginPassword" type="password" autocomplete="current-password" placeholder="Enter password" />
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <button class="btn btn-primary btn-full" id="loginBtn" onclick="doLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- ── App shell ── -->
+<div id="appShell">
+  <nav id="sidebar">
+    <div class="nav-logo">
+      <div class="logo-icon">CM</div>
+      <div class="logo-text">Call Master</div>
+    </div>
+    <div id="navLinks"></div>
+  </nav>
+
+  <div id="mainArea">
+    <div id="topbar">
+      <div class="topbar-title" id="topbarTitle">Dashboard</div>
+      <div id="topbarFilters"></div>
+      <span class="persona-badge" id="personaBadge"></span>
+      <span class="topbar-user" id="topbarUser"></span>
+    </div>
+    <section id="pageContent"></section>
+  </div>
+</div>
+
+<!-- ── Drawer ── -->
+<div id="drawerRoot">
+  <div class="drawer-overlay" onclick="closeDrawer()"></div>
+  <div class="drawer-panel">
+    <div class="drawer-header">
+      <div class="drawer-title"></div>
+      <button class="drawer-close" onclick="closeDrawer()">×</button>
+    </div>
+    <div class="drawer-body"></div>
+  </div>
+</div>
+
+<!-- ── Toast container ── -->
+<div id="toastContainer"></div>
+
+<!-- ── Scripts ── -->
+<script src="/callmaster/js/shared/components.js"></script>
+<script src="/callmaster/js/shared/charts.js"></script>
+<script src="/callmaster/js/pages/ceo.js"></script>
+<script src="/callmaster/js/pages/tq.js"></script>
+<script src="/callmaster/js/pages/pm.js"></script>
+<script src="/callmaster/js/pages/bm.js"></script>
+<script src="/callmaster/js/pages/analyst.js"></script>
+<script src="/callmaster/js/pages/admin.js"></script>
+<script src="/callmaster/js/app.js"></script>
+<script src="/callmaster/js/mock.js"></script>
+
+</body>
+</html>
