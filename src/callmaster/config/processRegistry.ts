@@ -22,9 +22,10 @@ interface ProcessRow extends RowDataPacket {
 let _registryPromise: Promise<Map<string, ProcessConfig>> | null = null;
 
 async function loadRegistry(): Promise<Map<string, ProcessConfig>> {
+  // target_cq_pct is not a column in process_mapping_master — derive from source_type
   const [rows] = await (db as any).execute(
     `SELECT process_name, source_type,
-            COALESCE(target_cq_pct, CASE WHEN source_type='Inbound' THEN 95 ELSE 80 END) AS target_cq_pct
+            CASE WHEN source_type='Inbound' THEN 95 ELSE 80 END AS target_cq_pct
      FROM process_mapping_master
      WHERE active_status = 1`
   ) as unknown as [ProcessRow[]];
