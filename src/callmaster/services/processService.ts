@@ -91,27 +91,27 @@ export async function pmOverview(params: PmParams) {
 
   const rows = await qDb(
     `SELECT
-       call_quality_percentage,
-       fatal_flag,
-       audit_date
+       quality_score,
+       is_critical_call,
+       call_date
      FROM v_call_master_unified_kpi
-     WHERE process_name = ? AND audit_date BETWEEN ? AND ?`,
+     WHERE process_name = ? AND call_date BETWEEN ? AND ?`,
     [processName, start, end],
   );
 
   const totalCalls = rows.length;
   const avgQuality =
     totalCalls > 0
-      ? +(rows.reduce((s: number, r: any) => s + Number(r.call_quality_percentage ?? 0), 0) / totalCalls).toFixed(2)
+      ? +(rows.reduce((s: number, r: any) => s + Number(r.quality_score ?? 0), 0) / totalCalls).toFixed(2)
       : 0;
-  const fatalCount = rows.filter((r: any) => r.fatal_flag == 1 || r.fatal_flag === true).length;
+  const fatalCount = rows.filter((r: any) => r.is_critical_call == 1 || r.is_critical_call === true).length;
   const fatalPct = totalCalls > 0 ? +((fatalCount / totalCalls) * 100).toFixed(2) : 0;
 
   let tqCount = 0;
   let bqCount = 0;
   let mqCount = 0;
   for (const r of rows) {
-    const q = Number(r.call_quality_percentage ?? 0);
+    const q = Number(r.quality_score ?? 0);
     if (q >= targetCqPct + 5) tqCount++;
     else if (q < targetCqPct - 5) bqCount++;
     else mqCount++;
@@ -123,11 +123,11 @@ export async function pmOverview(params: PmParams) {
   // Daily trend
   const trendMap = new Map<string, { sum: number; count: number }>();
   for (const r of rows) {
-    const date = r.audit_date instanceof Date
-      ? r.audit_date.toISOString().slice(0, 10)
-      : String(r.audit_date).slice(0, 10);
+    const date = r.call_date instanceof Date
+      ? r.call_date.toISOString().slice(0, 10)
+      : String(r.call_date).slice(0, 10);
     const existing = trendMap.get(date) ?? { sum: 0, count: 0 };
-    existing.sum += Number(r.call_quality_percentage ?? 0);
+    existing.sum += Number(r.quality_score ?? 0);
     existing.count += 1;
     trendMap.set(date, existing);
   }
@@ -168,14 +168,14 @@ export async function pmAgentLeaderboard(params: PmParams) {
 
   const rows = await qDb(
     `SELECT
-       agent_name,
-       emp_id,
+       agent_employee_name AS agent_name,
+       agent_employee_code AS emp_id,
        COUNT(*) AS totalCalls,
-       ROUND(AVG(call_quality_percentage), 2) AS avgQuality,
-       ROUND(SUM(CASE WHEN fatal_flag = 1 THEN 1 ELSE 0 END) / COUNT(*) * 100, 2) AS fatalPct
+       ROUND(AVG(quality_score), 2) AS avgQuality,
+       ROUND(SUM(is_critical_call) / COUNT(*) * 100, 2) AS fatalPct
      FROM v_call_master_unified_kpi
-     WHERE process_name = ? AND audit_date BETWEEN ? AND ?
-     GROUP BY agent_name, emp_id
+     WHERE process_name = ? AND call_date BETWEEN ? AND ?
+     GROUP BY agent_employee_name, agent_employee_code
      ORDER BY avgQuality DESC
      LIMIT 50`,
     [processName, start, end],
@@ -211,13 +211,13 @@ export async function pmLobBreakdown(params: PmParams) {
 
   const rows = await qDb(
     `SELECT
-       lob_name,
+       business_lob AS lob_name,
        COUNT(*) AS totalCalls,
-       ROUND(AVG(call_quality_percentage), 2) AS avgQuality,
-       ROUND(SUM(CASE WHEN fatal_flag = 1 THEN 1 ELSE 0 END) / COUNT(*) * 100, 2) AS fatalPct
+       ROUND(AVG(quality_score), 2) AS avgQuality,
+       ROUND(SUM(is_critical_call) / COUNT(*) * 100, 2) AS fatalPct
      FROM v_call_master_unified_kpi
-     WHERE process_name = ? AND audit_date BETWEEN ? AND ?
-     GROUP BY lob_name
+     WHERE process_name = ? AND call_date BETWEEN ? AND ?
+     GROUP BY business_lob
      ORDER BY totalCalls DESC`,
     [processName, start, end],
   );
@@ -274,7 +274,7 @@ export async function pmParameterBreakdown(params: PmParams) {
        COUNT(*) AS total
      FROM manual_qa_audit mqa
      JOIN v_call_master_unified_kpi k ON mqa.source_call_id = k.source_call_id
-     WHERE k.process_name = ? AND k.audit_date BETWEEN ? AND ?`,
+     WHERE k.process_name = ? AND k.call_date BETWEEN ? AND ?`,
     [processName, start, end],
   );
 
@@ -291,8 +291,8 @@ export async function pmTniReport(params: PmParams) {
 
   return qDb(
     `SELECT
-       k.agent_name,
-       k.emp_id,
+       k.agent_employee_name AS agent_name,
+       k.agent_employee_code AS emp_id,
        AVG(mqa.professionalism_maintained)*100 AS professionalism_maintained,
        AVG(mqa.accurate_issue_probing)*100 AS accurate_issue_probing,
        AVG(mqa.case_escalated_correctly)*100 AS case_escalated_correctly,
@@ -302,9 +302,9 @@ export async function pmTniReport(params: PmParams) {
        COUNT(*) AS total
      FROM manual_qa_audit mqa
      JOIN v_call_master_unified_kpi k ON mqa.source_call_id = k.source_call_id
-     WHERE k.process_name = ? AND k.audit_date BETWEEN ? AND ?
-     GROUP BY k.agent_name, k.emp_id
-     ORDER BY k.agent_name`,
+     WHERE k.process_name = ? AND k.call_date BETWEEN ? AND ?
+     GROUP BY k.agent_employee_name, k.agent_employee_code
+     ORDER BY k.agent_employee_name`,
     [processName, start, end],
   );
 }
@@ -317,11 +317,13 @@ export async function pmCoachingQueue(params: PmParams) {
   const { processName } = params;
 
   const rows = await qDb(
-    `SELECT q.*, k.agent_name, k.call_quality_percentage
+    `SELECT q.coaching_id, q.source_call_id, q.agent_employee_code, q.coaching_title,
+            q.coaching_reason, q.priority, q.status, q.due_date,
+            k.agent_employee_name AS agent_name, k.quality_score AS call_quality_percentage
      FROM call_coaching_queue q
      JOIN v_call_master_unified_kpi k ON q.source_call_id = k.source_call_id
-     WHERE k.process_name = ? AND q.status = 'pending'
-     ORDER BY k.call_quality_percentage ASC
+     WHERE k.process_name = ? AND q.status = 'Open'
+     ORDER BY k.quality_score ASC
      LIMIT 50`,
     [processName],
   );
