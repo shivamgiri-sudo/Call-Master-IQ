@@ -56,6 +56,32 @@ router.post('/sla-tracker', async (req, res): Promise<void> => {
   catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+router.get('/feedback-queue', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const status = (req.query.status as string) || 'pending';
+    const data = await quality.getFeedbackQueue(status);
+    res.json({ success: true, data });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.patch('/feedback/:id/resolve', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.cm!;
+    const feedbackId = Number(req.params.id);
+    const { resolution } = req.body;
+    if (!resolution || !['approved', 'rejected'].includes(resolution)) {
+      res.status(400).json({ success: false, error: 'resolution must be approved or rejected' });
+      return;
+    }
+    await quality.resolveFeedback({ feedbackId, resolution, resolvedBy: user.user_id });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 router.post('/coaching-notes', async (req, res): Promise<void> => {
   try {
     const { agent_employee_code, process_name, coaching_title, coaching_reason, priority, due_date, source_call_id } = req.body;

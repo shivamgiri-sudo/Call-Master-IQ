@@ -67,6 +67,7 @@ const NAV_CONFIG = {
     { label: 'Audit Efficiency',  page: 'tq-audit-efficiency', icon: '📌' },
     { label: 'Parameter Drift',   page: 'tq-parameter-drift',  icon: '📉' },
     { label: 'SLA Tracker',       page: 'tq-sla-tracker',      icon: '✅' },
+    { label: 'Feedback Queue',    page: 'tq-feedback-queue',   icon: '📝' },
   ],
   branch_manager: [
     { label: 'Branch Health',     page: 'bm-health',            icon: '💪' },

@@ -112,10 +112,33 @@ const ANALYST_PAGES = {
           { key: 'quality_score',  label: 'CQ%',       render: (v, row) => { const s = v ?? row.score; return s != null ? `<span class="td-mono">${Number(s).toFixed(1)}%</span>` : '—'; } },
           { key: 'quality_band',   label: 'Band',      render: (v, row) => bandBadge(v || row.band) },
           { key: 'alert_severity', label: 'Severity',  render: (v, row) => sevBadge(v || row.severity) },
+          { key: '_dispute', label: '', render: (_, row) =>
+              `<button class="badge badge-yellow" style="cursor:pointer;border:none;padding:4px 10px"
+                onclick="openDisputeModal('${String(row.id || row.source_call_id).replace(/'/g,"\\'")}','${(row.source_type||'Inbound').replace(/'/g,"\\'")}')">Dispute</button>`
+          },
         ],
         calls,
         { emptyMsg: 'No calls found for selected period' }
-      )}`;
+      )}
+      <div id="disputeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:28px;width:480px;max-width:90vw">
+          <div style="font-size:16px;font-weight:600;margin-bottom:16px;color:#f1f5f9">Dispute Call Score</div>
+          <div style="font-size:12px;color:#94a3b8;margin-bottom:16px" id="disputeCallId"></div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:4px">Reason for Dispute *</label>
+            <textarea id="disputeFeedbackText" rows="4" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px;color:#f1f5f9;font-size:13px;resize:vertical" placeholder="Describe why you are disputing this score..."></textarea>
+          </div>
+          <div style="margin-bottom:20px">
+            <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:4px">Evidence Notes (optional)</label>
+            <textarea id="disputeEvidenceNotes" rows="3" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px;color:#f1f5f9;font-size:13px;resize:vertical" placeholder="Any additional evidence or notes..."></textarea>
+          </div>
+          <div id="disputeError" style="color:#f87171;font-size:12px;margin-bottom:12px;display:none"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button onclick="closeDisputeModal()" style="background:#334155;border:none;border-radius:6px;padding:8px 16px;color:#94a3b8;cursor:pointer">Cancel</button>
+            <button onclick="submitDispute()" style="background:#2563eb;border:none;border-radius:6px;padding:8px 16px;color:#fff;cursor:pointer;font-weight:600">Submit Dispute</button>
+          </div>
+        </div>
+      </div>`;
   },
 
   'analyst-evidence': async function(preset) {
@@ -329,3 +352,44 @@ const ANALYST_PAGES = {
       ${cards}`;
   },
 };
+
+function openDisputeModal(callId, sourceType) {
+  window._disputeCallId = callId;
+  window._disputeSourceType = sourceType;
+  document.getElementById('disputeCallId').textContent = 'Call: ' + callId + ' (' + sourceType + ')';
+  document.getElementById('disputeFeedbackText').value = '';
+  document.getElementById('disputeEvidenceNotes').value = '';
+  document.getElementById('disputeError').style.display = 'none';
+  const m = document.getElementById('disputeModal');
+  m.style.display = 'flex';
+}
+
+function closeDisputeModal() {
+  document.getElementById('disputeModal').style.display = 'none';
+}
+
+async function submitDispute() {
+  const feedbackText = document.getElementById('disputeFeedbackText').value.trim();
+  const evidenceNotes = document.getElementById('disputeEvidenceNotes').value.trim();
+  const errEl = document.getElementById('disputeError');
+  if (!feedbackText) { errEl.textContent = 'Reason for dispute is required.'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+  try {
+    const r = await CALLMASTER_API.post('/api/callmaster/analyst/feedback', {
+      sourceCallId: window._disputeCallId,
+      sourceType: window._disputeSourceType,
+      feedbackText,
+      evidenceNotes,
+    });
+    if (r.success) {
+      closeDisputeModal();
+      alert('Dispute submitted successfully.');
+    } else {
+      errEl.textContent = r.error || 'Failed to submit dispute.';
+      errEl.style.display = 'block';
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.style.display = 'block';
+  }
+}

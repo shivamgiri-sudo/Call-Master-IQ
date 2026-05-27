@@ -149,6 +149,33 @@ export async function tqParameterDrift(scope: Scope) {
     .sort((a, b) => (a.change_pct ?? 0) - (b.change_pct ?? 0));
 }
 
+export async function getFeedbackQueue(status: string = 'pending'): Promise<any[]> {
+  const [rows] = await (db as any).execute(
+    `SELECT f.feedback_id, f.source_call_id, f.source_type, f.feedback_status,
+            f.feedback_text, f.evidence_notes, f.created_at,
+            u.username AS analyst_username, u.full_name AS analyst_name
+     FROM call_feedback_log f
+     LEFT JOIN cm_users u ON f.analyst_user_id = u.user_id
+     WHERE f.feedback_status = ?
+     ORDER BY f.created_at DESC
+     LIMIT 100`,
+    [status],
+  );
+  return rows as any[];
+}
+
+export async function resolveFeedback(params: {
+  feedbackId: number;
+  resolution: 'approved' | 'rejected';
+  resolvedBy: number;
+}): Promise<void> {
+  const { feedbackId, resolution } = params;
+  await (db as any).execute(
+    `UPDATE call_feedback_log SET feedback_status = ?, updated_at = NOW() WHERE feedback_id = ?`,
+    [resolution, feedbackId],
+  );
+}
+
 export async function tqSlaTracker(scope: Scope) {
   const { clause: pClause, params: pParams } = safeScopeFilter('process_name', scope.processIds);
 

@@ -282,6 +282,12 @@ const _MOCK_ROUTES = {
   ]}),
   '/api/callmaster/analyst/trend':         ()  => mockCeoTrend(),
   '/api/callmaster/analyst/coaching':      ()  => ({ sessions:[{id:1,date:'2026-05-20',coach:'Pooja',notes:'Work on compliance script adherence',status:'Acknowledged'}] }),
+  '/api/callmaster/analyst/feedback':     () => ({ feedback_id: Math.floor(Math.random() * 1000) + 1 }),
+  '/api/callmaster/tq/feedback-queue':    () => ([
+    { feedback_id: 1, source_call_id: 'IB-2891', source_type: 'Inbound',  analyst_name: 'Anita Sharma', feedback_text: 'Score seems too low, I followed the script correctly', evidence_notes: 'Check minute 2:30', feedback_status: 'pending', created_at: '2026-05-26T10:00:00' },
+    { feedback_id: 2, source_call_id: 'OB-5512', source_type: 'Outbound', analyst_name: 'Deepak Verma',  feedback_text: 'Objection handling parameter was marked wrong', evidence_notes: '', feedback_status: 'pending', created_at: '2026-05-25T14:30:00' },
+  ]),
+  '/api/callmaster/tq/feedback/:id/resolve': () => ({}),
   '/api/callmaster/analyst/call/:id':      (b, url) => {
     const qs    = url ? url.split('?')[1] || '' : '';
     const stParam = new URLSearchParams(qs).get('sourceType') || 'Inbound';
@@ -314,7 +320,9 @@ if (typeof CALLMASTER_API !== 'undefined' && USE_MOCK_DATA) {
     const pathNoQs = path.split('?')[0];
     // Normalize trailing segment to :id (numeric or alphanumeric with dashes)
     const key = pathNoQs.replace(/\/[\w-]+$/, '/:id');
-    const handler = _MOCK_ROUTES[path] || _MOCK_ROUTES[pathNoQs] || _MOCK_ROUTES[key];
+    // also normalize /123/action patterns like /feedback/1/resolve
+    const key2 = pathNoQs.replace(/\/\d+\/([^/]+)$/, '/:id/$1');
+    const handler = _MOCK_ROUTES[path] || _MOCK_ROUTES[pathNoQs] || _MOCK_ROUTES[key] || _MOCK_ROUTES[key2];
     if (!handler) {
       console.warn('[mock] No mock for', path);
       return { success: true, data: [] };

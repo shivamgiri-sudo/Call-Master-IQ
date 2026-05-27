@@ -30,4 +30,25 @@ router.get('/call/:id', wrap(req => {
   return analyst.myCallDetail(sourceType, String(req.params.id), getCode(req), req.cm!.role);
 }));
 
+router.post('/feedback', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.cm!;
+    const { sourceCallId, sourceType, feedbackText, evidenceNotes } = req.body;
+    if (!sourceCallId || !sourceType || !feedbackText) {
+      res.status(400).json({ success: false, error: 'sourceCallId, sourceType and feedbackText are required' });
+      return;
+    }
+    const result = await analyst.submitFeedback({
+      userId: user.user_id,
+      sourceCallId,
+      sourceType,
+      feedbackText: feedbackText.trim(),
+      evidenceNotes: (evidenceNotes || '').trim(),
+    });
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;

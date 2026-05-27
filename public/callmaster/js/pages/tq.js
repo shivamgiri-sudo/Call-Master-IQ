@@ -247,4 +247,42 @@ const TQ_PAGES = {
         { emptyMsg: 'No SLA data available' }
       )}`;
   },
+
+  'tq-feedback-queue': async function(preset) {
+    const r = await CALLMASTER_API.get('/api/callmaster/tq/feedback-queue?status=pending');
+    const rows = r.data || [];
+    return `
+      ${pageHeader('Feedback Queue', rows.length + ' pending disputes')}
+      ${table(
+        [
+          { key: 'feedback_id',     label: 'ID',       render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'source_call_id',  label: 'Call ID',  render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'source_type',     label: 'Type',     render: v => v ? `<span class="badge badge-${v==='Inbound'?'blue':'violet'}">${v}</span>` : '' },
+          { key: 'analyst_name',    label: 'Analyst' },
+          { key: 'feedback_text',   label: 'Reason',   render: v => `<span style="max-width:280px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${String(v||'').replace(/"/g,'&quot;')}">${v || '—'}</span>` },
+          { key: 'created_at',      label: 'Submitted', render: v => v ? new Date(v).toLocaleDateString() : '—' },
+          { key: 'feedback_status', label: 'Status',   render: v => `<span class="badge badge-${v==='pending'?'yellow':v==='approved'?'green':'red'}">${v}</span>` },
+          { key: '_actions',        label: '',         render: (_, row) => `
+            <button class="badge badge-green" style="cursor:pointer;border:none;padding:4px 10px;margin-right:4px"
+              onclick="resolveFeedback(${row.feedback_id},'approved')">Approve</button>
+            <button class="badge badge-red" style="cursor:pointer;border:none;padding:4px 10px"
+              onclick="resolveFeedback(${row.feedback_id},'rejected')">Reject</button>` },
+        ],
+        rows,
+        { emptyMsg: 'No pending disputes' }
+      )}`;
+  },
 };
+
+async function resolveFeedback(feedbackId, resolution) {
+  if (!confirm('Mark this dispute as ' + resolution + '?')) return;
+  const r = await CALLMASTER_API.request('/api/callmaster/tq/feedback/' + feedbackId + '/resolve', {
+    method: 'PATCH',
+    body: JSON.stringify({ resolution }),
+  });
+  if (r.success) {
+    go('tq-feedback-queue');
+  } else {
+    alert('Failed: ' + (r.error || 'Unknown error'));
+  }
+}

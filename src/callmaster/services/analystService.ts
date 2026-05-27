@@ -133,6 +133,22 @@ export async function myCoachingNotes(employeeCode: string) {
   `, [employeeCode]);
 }
 
+export async function submitFeedback(params: {
+  userId: number;
+  sourceCallId: string;
+  sourceType: string;
+  feedbackText: string;
+  evidenceNotes: string;
+}): Promise<{ feedback_id: number }> {
+  const { userId, sourceCallId, sourceType, feedbackText, evidenceNotes } = params;
+  const [result] = await (db as any).execute(
+    `INSERT INTO call_feedback_log (source_type, source_call_id, analyst_user_id, feedback_text, evidence_notes)
+     VALUES (?, ?, ?, ?, ?)`,
+    [sourceType, sourceCallId, userId, feedbackText, evidenceNotes],
+  );
+  return { feedback_id: (result as any).insertId };
+}
+
 export async function myCallDetail(sourceType: string, callId: string, employeeCode: string, role: string) {
   if (role === 'analyst') {
     const check = await q<any>(`SELECT agent_employee_code FROM v_call_master_unified_kpi WHERE source_call_id = ? LIMIT 1`, [callId]);
