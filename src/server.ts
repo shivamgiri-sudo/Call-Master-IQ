@@ -5,6 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
 
 import authRoutes from './routes/auth';
 import documentRoutes from './routes/documents';
@@ -18,6 +19,7 @@ import calibrationRoutes from './routes/calibration';
 import adminRoutes from './routes/admin';
 import hrmsRoutes from './routes/hrms';
 import careersRoutes from './routes/careers';
+import cmAuthRoutes from './callmaster/routes/cmAuthRoutes';
 import { pingDb } from './config/db';
 
 const app = express();
@@ -67,6 +69,10 @@ app.use('/api/hrms', hrmsRoutes);
 
 // People Pulse Careers & Smart Screening Portal routes
 app.use('/api/careers', careersRoutes);
+
+// Call Master Dashboard
+app.use('/api/callmaster/auth', cmAuthRoutes);
+app.use('/callmaster', express.static(path.join(__dirname, '..', 'public', 'callmaster')));
 
 const port = Number(process.env.PORT || 5050);
 
