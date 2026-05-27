@@ -33,7 +33,16 @@ const TQ_PAGES = {
       </div>
       ${table(
         [
-          { key: 'process_name', label: 'Process / Parameter', render: (v, row) => v || row.param || '—' },
+          { key: 'process_name', label: 'Process / Parameter', render: (v, row) => {
+              if (!v) return row.param || '—';
+              const pn = String(v).replace(/'/g, "\\'");
+              const cid = String(row.client_id || '');
+              const click = cid === '497'
+                ? `onclick="window.open('http://localhost:4070','_blank')"`
+                : `onclick="goProcess('${pn}','${cid}')"`;
+              return `<span style="cursor:pointer;color:#60a5fa" ${click}>${v}${cid === '497' ? ' ↗' : ' →'}</span>`;
+            }
+          },
           { key: 'source_type',  label: 'Type', render: v => v ? `<span class="badge badge-${v==='Inbound'?'blue':'violet'}">${v}</span>` : '' },
           { key: 'avg_score',    label: 'Score / Pass Rate', render: (v, row) => { const n = v || row.pass_rate; return n != null ? `<span class="td-mono">${n}%</span>` : '—'; } },
           { key: 'total_calls',  label: 'Calls', render: v => v != null ? Number(v).toLocaleString() : '—' },
@@ -88,7 +97,16 @@ const TQ_PAGES = {
         [
           { key: '_rank',           label: '#',          render: (_, __, idx) => idx + 1 },
           { key: 'name',            label: 'Analyst' },
-          { key: 'process_name',    label: 'Process' },
+          { key: 'process_name',    label: 'Process',    render: (v, row) => {
+              if (!v) return '—';
+              const pn = String(v).replace(/'/g, "\\'");
+              const cid = String(row.client_id || '');
+              const click = cid === '497'
+                ? `onclick="window.open('http://localhost:4070','_blank')"`
+                : `onclick="goProcess('${pn}','${cid}')"`;
+              return `<span style="cursor:pointer;color:#60a5fa" ${click}>${v}${cid === '497' ? ' ↗' : ''}</span>`;
+            }
+          },
           { key: 'source_type',     label: 'Type',       render: v => v ? `<span class="badge badge-${v==='Inbound'?'blue':'violet'}">${v}</span>` : '' },
           { key: 'avg_score',       label: 'Avg CQ%',    render: v => v ? `<span class="td-mono">${v}%</span>` : '—' },
           { key: 'total_calls',     label: 'Calls',      render: v => Number(v).toLocaleString() },

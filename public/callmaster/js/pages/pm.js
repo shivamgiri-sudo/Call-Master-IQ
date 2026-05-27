@@ -2,6 +2,56 @@
 
 const PM_PAGES = {
 
+  // ── 0. My Processes Landing ─────────────────────────────────────────────
+  'pm-my-processes': async function(preset) {
+    const r = await CALLMASTER_API.post('/api/callmaster/pm/my-processes', { preset });
+    const processes = r.data || [];
+
+    function scoreColor(q) {
+      if (q >= 90) return '#22c55e';
+      if (q >= 80) return '#f59e0b';
+      return '#ef4444';
+    }
+
+    function processCard(p) {
+      const isFinnable = p.is_finnable || String(p.client_id) === '497';
+      const q = Number(p.avgQuality || 0);
+      const onclick = isFinnable
+        ? `onclick="window.open('http://localhost:4070','_blank')"`
+        : `onclick="state.processName='${String(p.process_name).replace(/'/g,"\\'")}';go('pm-overview')"`;
+      return `
+        <div class="card" style="cursor:pointer;border:1px solid #1e293b;transition:border-color .15s" ${onclick}
+             onmouseenter="this.style.borderColor='#3b82f6'" onmouseleave="this.style.borderColor='#1e293b'">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#e2e8f0">${p.process_name}</div>
+              <div style="margin-top:4px">
+                <span class="badge badge-${p.source_type === 'Inbound' ? 'blue' : 'violet'}" style="margin-right:6px">${p.source_type}</span>
+                ${isFinnable ? '<span class="badge badge-yellow">Finnable ↗</span>' : ''}
+              </div>
+            </div>
+            <div style="font-size:28px;font-weight:800;color:${scoreColor(q)}">${q.toFixed(1)}%</div>
+          </div>
+          <div style="display:flex;gap:20px;font-size:13px;color:#64748b">
+            <span>Calls: <strong style="color:#94a3b8">${Number(p.totalCalls || 0).toLocaleString()}</strong></span>
+            <span>Fatal%: <strong style="color:${Number(p.fatalPct) > 5 ? '#ef4444' : '#94a3b8'}">${Number(p.fatalPct || 0).toFixed(1)}%</strong></span>
+          </div>
+          ${!isFinnable ? '<div style="margin-top:12px;font-size:12px;color:#3b82f6">Click to open →</div>' : ''}
+        </div>`;
+    }
+
+    const cards = processes.length
+      ? `<div class="grid-2">${processes.map(processCard).join('')}</div>`
+      : emptyState('No processes assigned for this period.');
+
+    return `
+      ${pageHeader('My Processes', processes.length + ' process' + (processes.length !== 1 ? 'es' : '') + ' · ' + preset)}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+        ${presetBar(preset, 'go.bind(null,"pm-my-processes")')}
+      </div>
+      ${cards}`;
+  },
+
   // ── 1. Process Overview ─────────────────────────────────────────────────
   'pm-overview': async function(preset) {
     const r = await CALLMASTER_API.post('/api/callmaster/pm/overview', { processName: state.processName, preset });

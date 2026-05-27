@@ -41,6 +41,22 @@ function buildParams(req: Request) {
 // Routes
 // ---------------------------------------------------------------------------
 
+router.post('/my-processes', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.cm!;
+    const params = buildParams(req);
+    // Build the list of process IDs this user can see
+    const processIds: string[] =
+      user.role === 'admin'
+        ? []  // admin passes empty → service will use its own filter
+        : (user.process_ids.includes('*') ? [] : user.process_ids);
+    const data = await pm.pmMyProcesses({ ...params, processIds });
+    res.json({ success: true, data });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 router.post('/overview', async (req: Request, res: Response): Promise<void> => {
   try {
     const processName = getProcessName(req, res);

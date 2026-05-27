@@ -132,3 +132,98 @@ export async function myCoachingNotes(employeeCode: string) {
     LIMIT 50
   `, [employeeCode]);
 }
+
+export async function myCallDetail(sourceType: string, callId: string, employeeCode: string, role: string) {
+  if (role === 'analyst') {
+    const check = await q<any>(`SELECT agent_employee_code FROM v_call_master_unified_kpi WHERE source_call_id = ? LIMIT 1`, [callId]);
+    if (!check.length || check[0].agent_employee_code !== employeeCode) {
+      throw new Error('Access denied: call does not belong to this analyst');
+    }
+  }
+
+  if (sourceType === 'Inbound') {
+    const rows = await q<any>(`
+      SELECT
+        'Inbound' AS source_type,
+        cqa.id AS source_call_id,
+        pm.process_name,
+        pm.business_lob,
+        pm.branch AS branch_short_name,
+        esa.employee_code AS agent_employee_code,
+        emm.employee_name AS agent_employee_name,
+        CONCAT('XXXXXX', RIGHT(cqa.MobileNo, 4)) AS mobile_no_masked,
+        cqa.CallDate AS call_datetime,
+        cqa.length_in_sec,
+        cqa.quality_percentage AS quality_score,
+        cqa.total_score,
+        cqa.max_score,
+        cqa.areas_for_improvement,
+        cqa.Transcribe_Text AS transcript_text,
+        cqa.overall_fraud_risk_score,
+        cqa.data_theft_or_misuse,
+        cqa.unprofessional_behavior,
+        cqa.system_manipulation,
+        cqa.financial_fraud,
+        cqa.escalation_failure,
+        cqa.collusion,
+        cqa.policy_communication_failure
+      FROM db_audit.call_quality_assessment cqa
+      INNER JOIN process_mapping_master pm
+        ON CONVERT(pm.dialdesk_client_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+         = CONVERT(cqa.ClientId USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        AND pm.source_type = 'Inbound' AND pm.active_status = 1
+      LEFT JOIN employee_source_alias esa
+        ON CONVERT(esa.source_alias USING utf8mb4) COLLATE utf8mb4_unicode_ci
+         = CONVERT(cqa.User USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        AND esa.active_status = 1
+      LEFT JOIN employee_mapping_master emm
+        ON emm.employee_code = esa.employee_code AND emm.active_status = 1
+      WHERE cqa.id = ?
+      LIMIT 1
+    `, [callId]);
+    return rows[0] || null;
+  }
+
+  // Outbound
+  const rows = await q<any>(`
+    SELECT
+      'Outbound' AS source_type,
+      cd.id AS source_call_id,
+      pm.process_name,
+      pm.business_lob,
+      pm.branch AS branch_short_name,
+      esa.employee_code AS agent_employee_code,
+      emm.employee_name AS agent_employee_name,
+      CONCAT('XXXXXX', RIGHT(cd.MobileNo, 4)) AS mobile_no_masked,
+      cd.CallDate AS call_datetime,
+      cd.length_in_sec,
+      NULL AS quality_score,
+      cd.AreaForImprovement AS areas_for_improvement,
+      cd.TranscribeText AS transcript_text,
+      cd.CallDisposition,
+      cd.SaleDone,
+      cd.Feedback_Category,
+      cd.FeedbackContext,
+      cd.AgentRebuttalCategory,
+      cd.CustomerObjectionCategory,
+      cd.Opening,
+      cd.Offered,
+      cd.ObjectionHandling,
+      cd.PrepaidPitch,
+      cd.UpsellingEfforts
+    FROM db_external.CallDetails cd
+    INNER JOIN process_mapping_master pm
+      ON CONVERT(pm.dialdesk_client_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+       = CONVERT(cd.client_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+      AND pm.source_type = 'Outbound' AND pm.active_status = 1
+    LEFT JOIN employee_source_alias esa
+      ON CONVERT(esa.source_alias USING utf8mb4) COLLATE utf8mb4_unicode_ci
+       = CONVERT(cd.AgentName USING utf8mb4) COLLATE utf8mb4_unicode_ci
+      AND esa.active_status = 1
+    LEFT JOIN employee_mapping_master emm
+      ON emm.employee_code = esa.employee_code AND emm.active_status = 1
+    WHERE cd.id = ?
+    LIMIT 1
+  `, [callId]);
+  return rows[0] || null;
+}

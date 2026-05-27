@@ -105,7 +105,7 @@ const ANALYST_PAGES = {
       </div>
       ${table(
         [
-          { key: 'id',             label: 'Call ID',   render: v => `<span class="td-mono">${v || '—'}</span>` },
+          { key: 'id', label: 'Call ID', render: (v, row) => v ? `<a href="#" onclick="event.preventDefault();window._analystCallId='${String(v).replace(/'/g,"\\'")}';window._analystSourceType='${String((row&&row.source_type)||'Inbound').replace(/'/g,"\\'")}';go('analyst-evidence')" style="color:#60a5fa;font-family:monospace;text-decoration:none">${v}</a>` : '—' },
           { key: 'source_type',    label: 'Type',      render: v => v ? `<span class="badge badge-${v === 'Inbound' ? 'blue' : 'violet'}">${v}</span>` : '—' },
           { key: 'process_name',   label: 'Process' },
           { key: 'call_date',      label: 'Date',      render: (v, row) => { const dt = v || row.date; return dt ? new Date(dt).toLocaleDateString() : '—'; } },
@@ -118,10 +118,132 @@ const ANALYST_PAGES = {
       )}`;
   },
 
-  'analyst-evidence': function() {
+  'analyst-evidence': async function(preset) {
+    const callId    = window._analystCallId    || null;
+    const sourceType = window._analystSourceType || 'Inbound';
+
+    if (!callId) {
+      return `
+        ${pageHeader('Call Intelligence 360', 'Select a call to review')}
+        ${emptyState('Click any Call ID in My Calls to view the full intelligence report.')}`;
+    }
+
+    const r = await CALLMASTER_API.get(`/api/callmaster/analyst/call/${callId}?sourceType=${encodeURIComponent(sourceType)}`);
+    const d = r.data;
+
+    if (!d) {
+      return `
+        ${pageHeader('Call Intelligence 360', 'Call not found')}
+        ${emptyState('No data found for this call ID.')}`;
+    }
+
+    const isInbound = (d.source_type || sourceType) === 'Inbound';
+
+    function flagBadge(val, label) {
+      const v = String(val || '').toLowerCase().trim();
+      const isYes = v === 'yes' || v === '1' || v === 'true';
+      return isYes
+        ? `<span class="badge badge-red" style="margin-right:4px">${label}</span>`
+        : `<span class="badge badge-gray" style="margin-right:4px">${label}: No</span>`;
+    }
+
+    function yesNoBadge(val, label) {
+      const v = String(val || '').toLowerCase().trim();
+      const isYes = v === 'yes' || v === '1' || v === 'true';
+      return `<span class="badge ${isYes ? 'badge-green' : 'badge-red'}" style="margin-right:4px">${label}: ${isYes ? 'Yes' : 'No'}</span>`;
+    }
+
+    const scoreColor = d.quality_score != null
+      ? (Number(d.quality_score) >= 90 ? '#22c55e' : Number(d.quality_score) >= 85 ? '#f59e0b' : '#ef4444')
+      : '#94a3b8';
+
+    const callMeta = `
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+          <div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:4px">CALL ID</div>
+            <div style="font-size:18px;font-weight:700;color:#e2e8f0;font-family:monospace">${d.source_call_id || callId}</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:4px">AGENT</div>
+            <div style="font-size:15px;font-weight:600;color:#e2e8f0">${d.agent_employee_name || '—'}</div>
+            <div style="font-size:12px;color:#64748b">${d.agent_employee_code || '—'}</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:4px">PROCESS</div>
+            <div style="font-size:14px;color:#e2e8f0">${d.process_name || '—'}</div>
+            <div style="font-size:12px;color:#64748b">${d.branch_short_name || '—'}</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:4px">DATE</div>
+            <div style="font-size:14px;color:#e2e8f0">${d.call_datetime ? new Date(d.call_datetime).toLocaleString() : '—'}</div>
+            <div style="font-size:12px;color:#64748b">${d.length_in_sec ? Math.floor(d.length_in_sec / 60) + 'm ' + (d.length_in_sec % 60) + 's' : '—'}</div>
+          </div>
+          ${d.quality_score != null ? `
+          <div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:4px">QUALITY</div>
+            <div style="font-size:24px;font-weight:700;color:${scoreColor}">${Number(d.quality_score).toFixed(1)}%</div>
+            <div style="font-size:12px;color:#64748b">${d.total_score ?? '—'} / ${d.max_score ?? '—'}</div>
+          </div>` : ''}
+        </div>
+      </div>`;
+
+    const inboundSection = isInbound ? `
+      <div class="card" style="margin-bottom:16px">
+        <div class="chart-title">Risk &amp; Compliance Flags</div>
+        <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+          ${flagBadge(d.data_theft_or_misuse,        'Data Theft')}
+          ${flagBadge(d.financial_fraud,              'Financial Fraud')}
+          ${flagBadge(d.escalation_failure,           'Escalation Failure')}
+          ${flagBadge(d.unprofessional_behavior,      'Unprofessional')}
+          ${flagBadge(d.system_manipulation,          'System Manipulation')}
+          ${flagBadge(d.collusion,                    'Collusion')}
+          ${flagBadge(d.policy_communication_failure, 'Policy Failure')}
+        </div>
+        ${d.overall_fraud_risk_score != null ? `<div style="margin-top:12px;font-size:13px;color:#94a3b8">Fraud Risk Score: <strong style="color:#f59e0b">${d.overall_fraud_risk_score}</strong></div>` : ''}
+      </div>` : '';
+
+    const outboundSection = !isInbound ? `
+      <div class="card" style="margin-bottom:16px">
+        <div class="chart-title">Sales &amp; Call Intelligence</div>
+        <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+          ${yesNoBadge(d.Opening,           'Opening')}
+          ${yesNoBadge(d.Offered,           'Offered')}
+          ${yesNoBadge(d.ObjectionHandling, 'Objection Handled')}
+          ${yesNoBadge(d.PrepaidPitch,      'Prepaid Pitch')}
+          ${yesNoBadge(d.SaleDone,          'Sale Done')}
+        </div>
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+          ${d.UpsellingEfforts     ? `<div style="font-size:13px;color:#94a3b8">Upselling: <strong style="color:#e2e8f0">${d.UpsellingEfforts}</strong></div>` : ''}
+          ${d.CallDisposition      ? `<div style="font-size:13px;color:#94a3b8">Disposition: <strong style="color:#e2e8f0">${d.CallDisposition}</strong></div>` : ''}
+          ${d.Feedback_Category    ? `<div style="font-size:13px;color:#94a3b8">Quality Score: <strong style="color:#e2e8f0">${d.Feedback_Category}</strong></div>` : ''}
+          ${d.CustomerObjectionCategory ? `<div style="font-size:13px;color:#94a3b8">Customer Objection: <strong style="color:#e2e8f0">${d.CustomerObjectionCategory}</strong></div>` : ''}
+          ${d.AgentRebuttalCategory     ? `<div style="font-size:13px;color:#94a3b8">Agent Rebuttal: <strong style="color:#e2e8f0">${d.AgentRebuttalCategory}</strong></div>` : ''}
+        </div>
+      </div>` : '';
+
+    const improvSection = d.areas_for_improvement ? `
+      <div class="card" style="margin-bottom:16px">
+        <div class="chart-title">Areas for Improvement</div>
+        <div style="margin-top:8px;font-size:13px;color:#94a3b8;line-height:1.6">${String(d.areas_for_improvement).replace(/\n/g, '<br>')}</div>
+      </div>` : '';
+
+    const transcriptSection = d.transcript_text ? `
+      <div class="card" style="margin-bottom:16px">
+        <div class="chart-title">Call Transcript</div>
+        <div style="margin-top:12px;font-size:13px;color:#94a3b8;line-height:1.7;white-space:pre-wrap;max-height:400px;overflow-y:auto;background:#0f172a;padding:16px;border-radius:8px;font-family:monospace">${String(d.transcript_text).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+      </div>` : '';
+
     return `
-      ${pageHeader('Evidence Review', 'Call-level detail')}
-      ${emptyState('Click a call from My Calls to view its detail evidence.')}`;
+      ${pageHeader('Call Intelligence 360', (d.source_type || sourceType) + ' · ' + (d.process_name || ''))}
+      <div style="margin-bottom:16px">
+        <button onclick="go('analyst-calls')" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px">&#8592; Back to My Calls</button>
+      </div>
+      ${callMeta}
+      ${inboundSection}
+      ${outboundSection}
+      ${improvSection}
+      ${transcriptSection}`;
   },
 
   'analyst-trend': async function() {

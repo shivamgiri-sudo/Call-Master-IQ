@@ -21,8 +21,8 @@ function mockCeoScorecard(preset) {
 
 function mockCeoProcessMatrix(preset) {
   return [
-    { process_name: 'Birlanu MCN', source_type: 'Outbound', quality_score: 79.4, total_calls: s(45700, preset), sla_pct: 88.2, critical_count: s(200, preset) },
-    { process_name: 'GNC Inbound', source_type: 'Inbound',  quality_score: 91.2, total_calls: s(38500, preset), sla_pct: 94.1, critical_count: s(112, preset) },
+    { process_name: 'Birlanu MCN', source_type: 'Outbound', client_id: '', quality_score: 79.4, total_calls: s(45700, preset), high_risk_count: s(148, preset), sla_pct: 88.2, critical_count: s(200, preset) },
+    { process_name: 'GNC Inbound', source_type: 'Inbound',  client_id: '', quality_score: 91.2, total_calls: s(38500, preset), high_risk_count: s(64,  preset), sla_pct: 94.1, critical_count: s(112, preset) },
   ];
 }
 
@@ -57,27 +57,27 @@ function mockCeoAlerts(preset) {
 function mockTqQualityDeepdive(preset) {
   return {
     inbound: { score: 91.2, parameters: [
-      { param: 'Opening', pass_rate: 96.1, weight: 10 },
-      { param: 'Compliance', pass_rate: 88.4, weight: 15 },
-      { param: 'Resolution', pass_rate: 94.7, weight: 20 },
-      { param: 'Call Closure', pass_rate: 91.2, weight: 10 },
+      { param: 'Opening',    process_name: 'GNC Inbound', client_id: '', pass_rate: 96.1, total_calls: s(38500,preset), weight: 10 },
+      { param: 'Compliance', process_name: 'GNC Inbound', client_id: '', pass_rate: 88.4, total_calls: s(38500,preset), weight: 15 },
+      { param: 'Resolution', process_name: 'GNC Inbound', client_id: '', pass_rate: 94.7, total_calls: s(38500,preset), weight: 20 },
+      { param: 'Call Closure',process_name: 'GNC Inbound',client_id: '', pass_rate: 91.2, total_calls: s(38500,preset), weight: 10 },
     ]},
     outbound: { score: 79.4, parameters: [
-      { param: 'Opening Pitch', pass_rate: 82.1, weight: 15 },
-      { param: 'Context Setting', pass_rate: 74.3, weight: 15 },
-      { param: 'Offer Pitch', pass_rate: 71.8, weight: 20 },
-      { param: 'Objection Handling', pass_rate: 68.5, weight: 20 },
+      { param: 'Opening Pitch',      process_name: 'Birlanu MCN', client_id: '', pass_rate: 82.1, total_calls: s(45700,preset), weight: 15 },
+      { param: 'Context Setting',    process_name: 'Birlanu MCN', client_id: '', pass_rate: 74.3, total_calls: s(45700,preset), weight: 15 },
+      { param: 'Offer Pitch',        process_name: 'Birlanu MCN', client_id: '', pass_rate: 71.8, total_calls: s(45700,preset), weight: 20 },
+      { param: 'Objection Handling', process_name: 'Birlanu MCN', client_id: '', pass_rate: 68.5, total_calls: s(45700,preset), weight: 20 },
     ]},
   };
 }
 
 function mockTqLeaderboard(preset) {
   return [
-    { employee_code: 'EMP001', name: 'Anita Sharma',  process: 'GNC Inbound',  score: 97.2, calls: s(320, preset), classification: 'TQ' },
-    { employee_code: 'EMP002', name: 'Rahul Singh',   process: 'GNC Inbound',  score: 94.1, calls: s(290, preset), classification: 'TQ' },
-    { employee_code: 'EMP003', name: 'Deepak Verma',  process: 'Birlanu MCN',  score: 82.4, calls: s(410, preset), classification: 'MQ' },
-    { employee_code: 'EMP004', name: 'Sonal Gupta',   process: 'Birlanu MCN',  score: 74.1, calls: s(380, preset), classification: 'BQ' },
-    { employee_code: 'EMP005', name: 'Kiran Patil',   process: 'GNC Inbound',  score: 88.9, calls: s(310, preset), classification: 'MQ' },
+    { agent_employee_code: 'EMP001', name: 'Anita Sharma',  process_name: 'GNC Inbound', client_id: '', avg_score: 97.2, total_calls: s(320, preset), critical_count: 0, classification: 'TQ', source_type: 'Inbound' },
+    { agent_employee_code: 'EMP002', name: 'Rahul Singh',   process_name: 'GNC Inbound', client_id: '', avg_score: 94.1, total_calls: s(290, preset), critical_count: 1, classification: 'TQ', source_type: 'Inbound' },
+    { agent_employee_code: 'EMP003', name: 'Deepak Verma',  process_name: 'Birlanu MCN', client_id: '', avg_score: 82.4, total_calls: s(410, preset), critical_count: 2, classification: 'MQ', source_type: 'Outbound' },
+    { agent_employee_code: 'EMP004', name: 'Sonal Gupta',   process_name: 'Birlanu MCN', client_id: '', avg_score: 74.1, total_calls: s(380, preset), critical_count: 3, classification: 'BQ', source_type: 'Outbound' },
+    { agent_employee_code: 'EMP005', name: 'Kiran Patil',   process_name: 'GNC Inbound', client_id: '', avg_score: 88.9, total_calls: s(310, preset), critical_count: 1, classification: 'MQ', source_type: 'Inbound' },
   ];
 }
 
@@ -207,8 +207,11 @@ const _MOCK_ROUTES = {
   '/api/callmaster/ceo/scorecard':         (b) => mockCeoScorecard(b.preset || 'MTD'),
   '/api/callmaster/ceo/process-matrix':    (b) => mockCeoProcessMatrix(b.preset || 'MTD'),
   '/api/callmaster/ceo/branch-comparison': (b) => mockCeoBranchComparison(b.preset || 'MTD'),
-  '/api/callmaster/ceo/sla-overview':      ()  => ({ sla_pct: 91.4, by_process: [{ process: 'GNC Inbound', sla_pct: 94.1 }, { process: 'Birlanu MCN', sla_pct: 88.2 }] }),
-  '/api/callmaster/ceo/risk-exposure':     (b) => ({ total_risk: 312, categories: [{ cat: 'Data Theft', count: 18 }, { cat: 'Escalation Failure', count: 94 }, { cat: 'Sensitive Word', count: 200 }] }),
+  '/api/callmaster/ceo/sla-overview':      (b)  => ([
+    { process_name: 'GNC Inbound', source_type: 'Inbound',  total_calls: s(38500, b.preset||'MTD'), sla_pct: 94.1 },
+    { process_name: 'Birlanu MCN', source_type: 'Outbound', total_calls: s(45700, b.preset||'MTD'), sla_pct: 88.2 },
+  ]),
+  '/api/callmaster/ceo/risk-exposure':     (b) => ({ total_risk: s(312, b.preset||'MTD'), breakdown: [{ alert_severity: 'Critical', count: s(18, b.preset||'MTD') }, { alert_severity: 'High', count: s(94, b.preset||'MTD') }, { alert_severity: 'Medium', count: s(200, b.preset||'MTD') }] }),
   '/api/callmaster/ceo/trend':             ()  => mockCeoTrend(),
   '/api/callmaster/ceo/alerts':            (b) => mockCeoAlerts(b.preset || 'MTD'),
   '/api/callmaster/tq/quality-deepdive':   (b) => mockTqQualityDeepdive(b.preset || 'MTD'),
@@ -219,6 +222,10 @@ const _MOCK_ROUTES = {
   '/api/callmaster/tq/audit-efficiency':   (b) => ({ manual_audits: s(1240, b.preset||'MTD'), ai_audits: s(3800, b.preset||'MTD'), pending: s(180, b.preset||'MTD') }),
   '/api/callmaster/tq/parameter-drift':    ()  => ({ declining: [{ param:'Compliance', change_pct: -4.2 }, { param:'Offer Pitch', change_pct: -6.8 }] }),
   '/api/callmaster/tq/sla-tracker':        ()  => ({ rows: [{ auditor:'Pooja', process:'GNC Inbound', sla_pct:96.2 }, { auditor:'Amit', process:'Birlanu MCN', sla_pct:84.1 }] }),
+  '/api/callmaster/pm/my-processes':           (b) => ([
+    { process_name: 'GNC Inbound', source_type: 'Inbound',  client_id: '', totalCalls: s(38500, b.preset||'MTD'), avgQuality: 91.2, fatalPct: 2.8, is_finnable: false },
+    { process_name: 'Birlanu MCN', source_type: 'Outbound', client_id: '', totalCalls: s(45700, b.preset||'MTD'), avgQuality: 79.4, fatalPct: 4.4, is_finnable: false },
+  ]),
   '/api/callmaster/pm/overview':              (b) => mockPmOverview(b.preset || 'MTD'),
   '/api/callmaster/pm/agent-leaderboard':     (b) => mockPmAgentLeaderboard(b.preset || 'MTD'),
   '/api/callmaster/pm/lob-breakdown':         (b) => mockPmLobBreakdown(b.preset || 'MTD'),
@@ -269,22 +276,51 @@ const _MOCK_ROUTES = {
   ]),
   '/api/callmaster/analyst/overview':      (b) => ({ my_score:88.9, my_calls:s(310,b.preset||'MTD'), my_fatal:2, target_cq_pct:95 }),
   '/api/callmaster/analyst/defects':       (b) => ({ params:[{param:'Compliance',lost_marks:s(18,b.preset||'MTD')},{param:'Resolution',lost_marks:s(8,b.preset||'MTD')}] }),
-  '/api/callmaster/analyst/my-calls':      (b) => ({ total:s(310,b.preset||'MTD'), calls:[{id:'IB-2910',date:'2026-05-27',score:82.1,band:'Average',severity:'Normal'}] }),
+  '/api/callmaster/analyst/my-calls':      (b) => ({ total:s(310,b.preset||'MTD'), calls:[
+    { id:'IB-2910', source_type:'Inbound',  process_name:'GNC Inbound', call_date:'2026-05-27', quality_score:91.5, quality_band:'TQ', alert_severity:'Normal' },
+    { id:'OB-5512', source_type:'Outbound', process_name:'Birlanu MCN', call_date:'2026-05-26', quality_score:null, quality_band:'MQ', alert_severity:'Normal' },
+  ]}),
   '/api/callmaster/analyst/trend':         ()  => mockCeoTrend(),
   '/api/callmaster/analyst/coaching':      ()  => ({ sessions:[{id:1,date:'2026-05-20',coach:'Pooja',notes:'Work on compliance script adherence',status:'Acknowledged'}] }),
+  '/api/callmaster/analyst/call/:id':      (b, url) => {
+    const qs    = url ? url.split('?')[1] || '' : '';
+    const stParam = new URLSearchParams(qs).get('sourceType') || 'Inbound';
+    const id    = url ? url.split('/').pop().split('?')[0] : 'unknown';
+    if (stParam === 'Outbound') {
+      return { source_call_id:id, source_type:'Outbound', process_name:'Birlanu MCN',
+        branch_short_name:'Delhi NCR', agent_employee_code:'EMP003', agent_employee_name:'Deepak Verma',
+        call_datetime:'2026-05-27T10:30:00', length_in_sec:245, quality_score:null,
+        areas_for_improvement:'Objection handling needs improvement. Follow prepaid pitch script.',
+        transcript_text:'Agent: Good morning, this is Deepak from Birlanu MCN...\nCustomer: Yes, go ahead.\nAgent: I am calling about our prepaid plan upgrade...',
+        CallDisposition:'Interested But Pending', SaleDone:0, Feedback_Category:'72',
+        CustomerObjectionCategory:'Price Concern', AgentRebuttalCategory:'Value Proposition',
+        Opening:1, Offered:1, ObjectionHandling:0, PrepaidPitch:1, UpsellingEfforts:'Average' };
+    }
+    return { source_call_id:id, source_type:'Inbound', process_name:'GNC Inbound',
+      branch_short_name:'Mumbai', agent_employee_code:'EMP001', agent_employee_name:'Anita Sharma',
+      call_datetime:'2026-05-27T14:15:00', length_in_sec:312, quality_score:91.5, total_score:91.5, max_score:100,
+      areas_for_improvement:'Hold procedure was slightly delayed. Good compliance overall.',
+      transcript_text:'Agent: Thank you for calling GNC support, this is Anita. How may I help you today?\nCustomer: Hi, I need help with my account...\nAgent: Sure, I will be happy to assist...',
+      overall_fraud_risk_score:0.02, data_theft_or_misuse:'No', financial_fraud:'No',
+      escalation_failure:'No', unprofessional_behavior:'No', system_manipulation:'No',
+      collusion:'No', policy_communication_failure:'No' };
+  },
 };
 
 // Override CALLMASTER_API.request when USE_MOCK_DATA=true
 if (typeof CALLMASTER_API !== 'undefined' && USE_MOCK_DATA) {
   CALLMASTER_API.request = async function(path, options = {}) {
-    const key = path.replace(/\/[0-9]+$/, '/:id');  // normalize :id routes
-    const handler = _MOCK_ROUTES[path] || _MOCK_ROUTES[key];
+    // Strip query string for key lookup, keep full path for handler
+    const pathNoQs = path.split('?')[0];
+    // Normalize trailing segment to :id (numeric or alphanumeric with dashes)
+    const key = pathNoQs.replace(/\/[\w-]+$/, '/:id');
+    const handler = _MOCK_ROUTES[path] || _MOCK_ROUTES[pathNoQs] || _MOCK_ROUTES[key];
     if (!handler) {
       console.warn('[mock] No mock for', path);
       return { success: true, data: [] };
     }
     const body = options.body ? JSON.parse(options.body) : {};
     await new Promise(r => setTimeout(r, 80));  // simulate network latency
-    return { success: true, data: handler(body) };
+    return { success: true, data: handler(body, path) };
   };
 }

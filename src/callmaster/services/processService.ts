@@ -78,6 +78,44 @@ async function qDb(sql: string, params: any[]): Promise<any[]> {
 }
 
 // ---------------------------------------------------------------------------
+// pmMyProcesses — landing page: all assigned processes with quick KPIs
+// ---------------------------------------------------------------------------
+
+export async function pmMyProcesses(params: PmParams & { processIds: string[] }) {
+  const { processIds, preset, startDate, endDate } = params;
+  const { start, end } = dateRange(preset, startDate, endDate);
+
+  // Empty processIds means "all processes" (admin/wildcard)
+  const whereProcess = processIds.length
+    ? `AND process_name IN (${processIds.map(() => '?').join(',')})`
+    : '';
+
+  const rows = await qDb(
+    `SELECT
+       process_name, source_type, client_id,
+       COUNT(*) AS totalCalls,
+       ROUND(AVG(quality_score), 2) AS avgQuality,
+       ROUND(SUM(is_critical_call) / COUNT(*) * 100, 2) AS fatalPct
+     FROM v_call_master_unified_kpi
+     WHERE call_date BETWEEN ? AND ?
+       ${whereProcess}
+     GROUP BY process_name, source_type, client_id
+     ORDER BY process_name`,
+    [start, end, ...processIds],
+  );
+
+  return rows.map((r: any) => ({
+    process_name: r.process_name,
+    source_type: r.source_type,
+    client_id: String(r.client_id ?? ''),
+    totalCalls: Number(r.totalCalls),
+    avgQuality: Number(r.avgQuality ?? 0),
+    fatalPct: Number(r.fatalPct ?? 0),
+    is_finnable: String(r.client_id ?? '') === '497',
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // pmOverview
 // ---------------------------------------------------------------------------
 

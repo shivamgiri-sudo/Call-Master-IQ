@@ -31,19 +31,38 @@ const CEO_PAGES = {
   'ceo-process-matrix': async function(preset) {
     const r = await CALLMASTER_API.post('/api/callmaster/ceo/process-matrix', { preset });
     const rows = r.data || [];
+
+    function drillBtn(row) {
+      const pn = String(row.process_name || '').replace(/'/g, "\\'");
+      const cid = String(row.client_id || '');
+      if (cid === '497') {
+        return `<button onclick="window.open('http://localhost:4070','_blank')" class="badge badge-yellow" style="cursor:pointer;border:none;padding:4px 10px">Finnable ↗</button>`;
+      }
+      return `<button onclick="goProcess('${pn}','${cid}')" class="badge badge-blue" style="cursor:pointer;border:none;padding:4px 10px">Drill In →</button>`;
+    }
+
     return `
-      ${pageHeader('Process Health Matrix', 'All active processes · ' + preset)}
+      ${pageHeader('Process Health Matrix', 'Click any process to drill in · ' + preset)}
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
         ${presetBar(preset, 'go.bind(null,"ceo-process-matrix")')}
       </div>
       ${table(
         [
-          { key: 'process_name',   label: 'Process' },
+          { key: 'process_name',   label: 'Process',   render: (v, row) => {
+              const pn = String(v || '').replace(/'/g, "\\'");
+              const cid = String(row.client_id || '');
+              const click = cid === '497'
+                ? `onclick="window.open('http://localhost:4070','_blank')"`
+                : `onclick="goProcess('${pn}','${cid}')"`;
+              return `<span style="cursor:pointer;color:#60a5fa;font-weight:600" ${click}>${v}</span>`;
+            }
+          },
           { key: 'source_type',    label: 'Type',      render: v => `<span class="badge badge-${v==='Inbound'?'blue':'violet'}">${v}</span>` },
-          { key: 'quality_score',  label: 'CQ%',        render: v => v ? `<span class="td-mono">${v}%</span>` : '—' },
-          { key: 'total_calls',    label: 'Calls',      render: v => Number(v).toLocaleString() },
-          { key: 'critical_count', label: 'Critical',   render: v => Number(v) > 0 ? `<span class="sev-critical">${v}</span>` : '0' },
-          { key: 'high_risk_count',label: 'High Risk',  render: v => Number(v).toLocaleString() },
+          { key: 'quality_score',  label: 'CQ%',       render: v => v ? `<span class="td-mono">${v}%</span>` : '—' },
+          { key: 'total_calls',    label: 'Calls',     render: v => Number(v).toLocaleString() },
+          { key: 'critical_count', label: 'Critical',  render: v => Number(v) > 0 ? `<span class="sev-critical">${v}</span>` : '0' },
+          { key: 'high_risk_count',label: 'High Risk', render: v => Number(v).toLocaleString() },
+          { key: '_drill',         label: '',          render: (_, row) => drillBtn(row) },
         ],
         rows,
         { emptyMsg: 'No process data for selected period' }

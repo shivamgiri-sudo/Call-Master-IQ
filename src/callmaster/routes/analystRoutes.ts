@@ -3,7 +3,6 @@ import { Router, Request, Response } from 'express';
 import { cmAuthMiddleware, requireRole } from '../middleware/cmAuth';
 import { Preset } from '../repositories/baseRepository';
 import * as analyst from '../services/analystService';
-import { getInboundCallDetail } from '../repositories/inboundRepo';
 
 const router = Router();
 router.use(cmAuthMiddleware);
@@ -26,6 +25,9 @@ router.post('/defects',    wrap(req => analyst.myDefects(preset(req), getCode(re
 router.post('/my-calls',   wrap(req => analyst.myCalls(preset(req), getCode(req), Number(String(req.body?.page || 1)), 50)));
 router.post('/trend',      wrap(req => analyst.myTrend(getCode(req))));
 router.get('/coaching',    wrap(req => analyst.myCoachingNotes(getCode(req))));
-router.get('/call/:id',    wrap(req => getInboundCallDetail(String(req.params.id))));
+router.get('/call/:id', wrap(req => {
+  const sourceType = String(req.query.sourceType || 'Inbound');
+  return analyst.myCallDetail(sourceType, String(req.params.id), getCode(req), req.cm!.role);
+}));
 
 export default router;

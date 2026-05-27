@@ -39,7 +39,7 @@ export async function getProcessMatrix(opts: ScopeOptions) {
 
   return execute(`
     SELECT
-      process_name, source_type,
+      process_name, source_type, client_id,
       COUNT(*) AS total_calls,
       ROUND(AVG(CASE WHEN quality_score IS NOT NULL THEN quality_score END), 2) AS quality_score,
       SUM(is_critical_call) AS critical_count,
@@ -47,7 +47,7 @@ export async function getProcessMatrix(opts: ScopeOptions) {
     FROM v_call_master_unified_kpi
     WHERE call_date BETWEEN ? AND ?
       AND ${bClause} AND ${pClause}
-    GROUP BY process_name, source_type
+    GROUP BY process_name, source_type, client_id
     ORDER BY source_type, process_name
   `, [startDate, endDate, ...bParams, ...pParams]);
 }

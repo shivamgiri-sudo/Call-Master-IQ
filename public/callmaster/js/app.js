@@ -24,6 +24,7 @@ const state = {
   page: null,
   preset: 'MTD',
   user: null,
+  processName: null,   // active process for PM drilldown
 };
 
 // ── JWT helpers ──
@@ -76,6 +77,7 @@ const NAV_CONFIG = {
     { label: 'Action Items',      page: 'bm-action-items',      icon: '✅' },
   ],
   process_manager: [
+    { label: 'My Processes',      page: 'pm-my-processes',      icon: '🗂️' },
     { label: 'Process Overview',  page: 'pm-overview',          icon: '📊' },
     { label: 'Parameters',        page: 'pm-parameters',        icon: '📋' },
     { label: 'Call Explorer',     page: 'pm-explorer',          icon: '🔍' },
@@ -143,6 +145,19 @@ function go(page, preset) {
   }).catch(err => {
     pc.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">${err.message}</div></div>`;
   });
+}
+
+// ── Process drilldown helper ──
+// Called from CEO/TQ process matrix rows to drill into a specific process.
+// If the process belongs to Finnable (client_id=497), opens the Finnable app in a new tab.
+// Otherwise sets state.processName and navigates to pm-overview.
+function goProcess(processName, clientId, finnableUrl) {
+  if (String(clientId) === '497') {
+    window.open(finnableUrl || 'http://localhost:4070', '_blank');
+    return;
+  }
+  state.processName = processName;
+  go('pm-overview');
 }
 
 // ── Sidebar builder ──
