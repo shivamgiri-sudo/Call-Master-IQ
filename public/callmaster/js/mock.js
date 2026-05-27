@@ -82,11 +82,37 @@ function mockTqLeaderboard(preset) {
 }
 
 function mockPmOverview(preset) {
+  const total = s(38500, preset);
+  const tq = Math.round(total * 0.42), bq = Math.round(total * 0.12), mq = total - tq - bq;
+  const days = preset === 'D1' ? 1 : preset === 'WTD' ? 7 : 27;
+  const trend = Array.from({ length: days }, (_, i) => ({
+    date: new Date(Date.now() - (days - 1 - i) * 86400000).toISOString().slice(0, 10),
+    avgQuality: +(91 + Math.sin(i) * 2).toFixed(2),
+  }));
   return {
-    quality_score: 91.2, total_calls: s(38500, preset),
-    defect_count: s(3400, preset), critical_count: s(112, preset),
-    target_cq_pct: 95, source_type: 'Inbound',
+    processName: 'GNC Inbound', sourceType: 'Inbound', targetCqPct: 95,
+    totalCalls: total, avgQuality: 91.2, fatalPct: 2.8,
+    tqCount: tq, mqCount: mq, bqCount: bq,
+    tqPct: +((tq/total)*100).toFixed(1), mqPct: +((mq/total)*100).toFixed(1), bqPct: +((bq/total)*100).toFixed(1),
+    trend,
   };
+}
+
+function mockPmAgentLeaderboard(preset) {
+  return [
+    { agent_name: 'Anita Sharma',  emp_id: 'EMP001', totalCalls: s(320, preset), avgQuality: 97.2, fatalPct: 0.0, classification: 'TQ' },
+    { agent_name: 'Rahul Singh',   emp_id: 'EMP002', totalCalls: s(290, preset), avgQuality: 94.1, fatalPct: 0.3, classification: 'TQ' },
+    { agent_name: 'Kiran Patil',   emp_id: 'EMP005', totalCalls: s(310, preset), avgQuality: 88.9, fatalPct: 0.6, classification: 'MQ' },
+    { agent_name: 'Meera Joshi',   emp_id: 'EMP006', totalCalls: s(280, preset), avgQuality: 83.4, fatalPct: 1.1, classification: 'BQ' },
+  ];
+}
+
+function mockPmLobBreakdown(preset) {
+  return [
+    { lob_name: 'Query',     totalCalls: s(12000, preset), avgQuality: 92.1, fatalPct: 1.8, targetCqPct: 95 },
+    { lob_name: 'Complaint', totalCalls: s(9800,  preset), avgQuality: 89.4, fatalPct: 3.2, targetCqPct: 95 },
+    { lob_name: 'Request',   totalCalls: s(8400,  preset), avgQuality: 91.8, fatalPct: 2.1, targetCqPct: 95 },
+  ];
 }
 
 function mockPmAnalystScorecard(preset) {
@@ -116,45 +142,63 @@ function mockPmFatalAnalysis(preset) {
 
 function mockPmCstCrt(preset) {
   return {
-    cst: { total_calls: s(45700, preset), ops: s(38200, preset), cps: s(28400, preset), offer_success: s(18600, preset), sale_done: s(9800, preset), success_rate: 21.4 },
-    crt: { or: s(7500, preset), cr: s(9800, preset), opr: s(9800, preset), por: s(2200, preset), failure_rate: 27.4 },
+    cst: {
+      total: s(45700, preset),
+      funnel: [
+        { stage: 'Total Calls',      count: s(45700, preset) },
+        { stage: 'Opening Pitched',  count: s(38200, preset) },
+        { stage: 'Offer Presented',  count: s(28400, preset) },
+        { stage: 'Offer Accepted',   count: s(18600, preset) },
+        { stage: 'Sale Done',        count: s(9800,  preset) },
+      ],
+    },
+    crt: {
+      total: s(7500, preset),
+      funnel: [
+        { stage: 'Opening Rejected', count: s(7500, preset) },
+        { stage: 'Counter Pitched',  count: s(5200, preset) },
+        { stage: 'Offer Presented',  count: s(3800, preset) },
+        { stage: 'Sale Recovered',   count: s(2200, preset) },
+      ],
+    },
   };
 }
 
 function mockPmNpsCsat(preset) {
   return {
-    nps_score: 10.56,
-    csat_score: 72.5,
-    detractors: s(3200, preset), passives: s(8100, preset), promoters: s(5400, preset),
-    day_wise: {
-      categories: ['Mon','Tue','Wed','Thu','Fri'],
-      nps: [8.2, 11.4, 10.9, 12.1, 10.2],
-      csat: [70.1, 73.2, 72.8, 74.1, 71.8],
-    },
-  };
-}
-
-function mockPmMissedOpportunities(preset) {
-  return {
-    total_opportunities: s(45700, preset),
-    mo_count: s(12500, preset),
-    categories: [
-      { category: 'Competitor Product', count: s(3200, preset), contr_pct: 25.6, observation: 'Agents failing to address competitor feature gap; no counter-script available' },
-      { category: 'Budget Constraint',  count: s(2800, preset), contr_pct: 22.4, observation: 'EMI explanation not being done in 60%+ of objection cases' },
-      { category: 'Low Urgency',        count: s(2100, preset), contr_pct: 16.8, observation: 'Agents not creating urgency using limited-time offer language' },
-      { category: 'Durability',         count: s(1900, preset), contr_pct: 15.2, observation: 'Product quality rebuttals weak; escalation to supervisor in 30%+ cases' },
-      { category: 'Shipping Speed',     count: s(1400, preset), contr_pct: 11.2, observation: 'Delivery timeline not being communicated proactively' },
-      { category: 'Hidden Fees',        count: s(1100, preset), contr_pct: 8.8,  observation: 'Transparency gap; agents not disclosing processing fees upfront' },
+    nps: 10.56, csat: 72.5,
+    breakdown: [
+      { category: 'Promoter',  count: s(5400, preset) },
+      { category: 'Passive',   count: s(8100, preset) },
+      { category: 'Detractor', count: s(3200, preset) },
     ],
   };
 }
 
-function mockPmObjectionRebuttal(preset) {
+function mockPmMissedOpportunities(preset) {
   return [
-    { objection: 'Price too high',    rebuttal: 'EMI option',      count: s(1200, preset), failed_rebuttal_pct: 34.2, failed_rebuttal: s(410, preset), successful_rebuttal_pct: 65.8, successful_rebuttal: s(790, preset), conversion_pct: 18.4 },
-    { objection: 'Not needed now',    rebuttal: 'Urgency creation', count: s(980, preset),  failed_rebuttal_pct: 51.0, failed_rebuttal: s(500, preset), successful_rebuttal_pct: 49.0, successful_rebuttal: s(480, preset), conversion_pct: 12.1 },
-    { objection: 'Competitor better', rebuttal: 'Feature compare',  count: s(820, preset),  failed_rebuttal_pct: 62.4, failed_rebuttal: s(512, preset), successful_rebuttal_pct: 37.6, successful_rebuttal: s(308, preset), conversion_pct: 8.9 },
+    { category: 'Competitor Product', count: s(3200, preset), pct: 25.6 },
+    { category: 'Budget Constraint',  count: s(2800, preset), pct: 22.4 },
+    { category: 'Low Urgency',        count: s(2100, preset), pct: 16.8 },
+    { category: 'Durability',         count: s(1900, preset), pct: 15.2 },
+    { category: 'Shipping Speed',     count: s(1400, preset), pct: 11.2 },
+    { category: 'Hidden Fees',        count: s(1100, preset), pct: 8.8 },
   ];
+}
+
+function mockPmObjectionRebuttal(preset) {
+  return {
+    objections: [
+      { category: 'Price too high',    count: s(1200, preset) },
+      { category: 'Not needed now',    count: s(980,  preset) },
+      { category: 'Competitor better', count: s(820,  preset) },
+    ],
+    rebuttals: [
+      { category: 'EMI option',        count: s(790, preset) },
+      { category: 'Urgency creation',  count: s(480, preset) },
+      { category: 'Feature compare',   count: s(308, preset) },
+    ],
+  };
 }
 
 // ── Mock API override ──
@@ -175,21 +219,32 @@ const _MOCK_ROUTES = {
   '/api/callmaster/tq/audit-efficiency':   (b) => ({ manual_audits: s(1240, b.preset||'MTD'), ai_audits: s(3800, b.preset||'MTD'), pending: s(180, b.preset||'MTD') }),
   '/api/callmaster/tq/parameter-drift':    ()  => ({ declining: [{ param:'Compliance', change_pct: -4.2 }, { param:'Offer Pitch', change_pct: -6.8 }] }),
   '/api/callmaster/tq/sla-tracker':        ()  => ({ rows: [{ auditor:'Pooja', process:'GNC Inbound', sla_pct:96.2 }, { auditor:'Amit', process:'Birlanu MCN', sla_pct:84.1 }] }),
-  '/api/callmaster/pm/overview':           (b) => mockPmOverview(b.preset || 'MTD'),
-  '/api/callmaster/pm/parameter-breakdown':(b) => ({ params: [{ param:'Resolution', weight:20, pass_rate:94.7, trend:'up' }, { param:'Compliance', weight:15, pass_rate:88.4, trend:'down' }] }),
-  '/api/callmaster/pm/explorer':           (b) => ({ total: 38500, calls: [{ id:'IB-2891', agent:'Ravi Kumar', date:'2026-05-27', score:82.1, band:'Average', severity:'Critical' }] }),
-  '/api/callmaster/pm/analyst-scorecard':  (b) => mockPmAnalystScorecard(b.preset || 'MTD'),
-  '/api/callmaster/pm/tni-report':         ()  => ({ agents:['Anita','Rahul'], params:['Resolution','Compliance'], matrix:[[0,1],[2,3]] }),
-  '/api/callmaster/pm/trends':             ()  => mockCeoTrend(),
-  '/api/callmaster/pm/fatal-analysis':     (b) => mockPmFatalAnalysis(b.preset || 'MTD'),
-  '/api/callmaster/pm/scenario-breakdown': (b) => ({ scenarios:[{scenario:'Query',score:92.1,calls:s(12000,b.preset||'MTD'),fatal:s(80,b.preset||'MTD')},{scenario:'Complaint',score:89.4,calls:s(9800,b.preset||'MTD'),fatal:s(220,b.preset||'MTD')}] }),
-  '/api/callmaster/pm/detail-analysis':    (b) => ({ rows:[{ name:'Anita Sharma', score:97.2, calls:s(320,b.preset||'MTD'), classification:'TQ', params:{ Resolution:100, Compliance:96 } }] }),
-  '/api/callmaster/pm/escalation-analysis':(b) => ({ potential_escalations:s(180,b.preset||'MTD'), social_media_threat:s(12,b.preset||'MTD'), scam_mentions:s(8,b.preset||'MTD'), competitor_mentions:s(44,b.preset||'MTD') }),
-  '/api/callmaster/pm/cst-crt-funnel':     (b) => mockPmCstCrt(b.preset || 'MTD'),
-  '/api/callmaster/pm/missed-opportunities':(b)=> mockPmMissedOpportunities(b.preset || 'MTD'),
-  '/api/callmaster/pm/nps-csat':           (b) => mockPmNpsCsat(b.preset || 'MTD'),
-  '/api/callmaster/pm/pitch-stage-analysis':(b)=> ({ op:[{category:'Direct Pitch',success_rate:68.2,count:s(18000,b.preset||'MTD')}], offered:[{discount_type:'10%',total_offered:s(8200,b.preset||'MTD'),or_count:s(2100,b.preset||'MTD'),or_pct:25.6,os_count:s(4800,b.preset||'MTD'),os_pct:58.5,sale_count:s(1300,b.preset||'MTD'),conversion_pct:15.9}] }),
-  '/api/callmaster/pm/objection-rebuttal': (b) => mockPmObjectionRebuttal(b.preset || 'MTD'),
+  '/api/callmaster/pm/overview':              (b) => mockPmOverview(b.preset || 'MTD'),
+  '/api/callmaster/pm/agent-leaderboard':     (b) => mockPmAgentLeaderboard(b.preset || 'MTD'),
+  '/api/callmaster/pm/lob-breakdown':         (b) => mockPmLobBreakdown(b.preset || 'MTD'),
+  '/api/callmaster/pm/parameter-breakdown':   (b) => ({ professionalism_maintained: s(94, b.preset||'MTD'), accurate_issue_probing: s(88, b.preset||'MTD'), case_escalated_correctly: s(91, b.preset||'MTD'), proper_hold_procedure: s(87, b.preset||'MTD'), correct_and_complete_information: s(92, b.preset||'MTD'), proper_call_closure: s(95, b.preset||'MTD'), total: s(1200, b.preset||'MTD') }),
+  '/api/callmaster/pm/tni-report':            (b) => [
+    { agent_name:'Anita Sharma', emp_id:'EMP001', professionalism_maintained:99, accurate_issue_probing:98, case_escalated_correctly:100, proper_hold_procedure:97, correct_and_complete_information:98, proper_call_closure:99, total:s(320,b.preset||'MTD') },
+    { agent_name:'Rahul Singh',  emp_id:'EMP002', professionalism_maintained:95, accurate_issue_probing:91, case_escalated_correctly:94,  proper_hold_procedure:90, correct_and_complete_information:93, proper_call_closure:96, total:s(290,b.preset||'MTD') },
+    { agent_name:'Kiran Patil',  emp_id:'EMP005', professionalism_maintained:90, accurate_issue_probing:85, case_escalated_correctly:88,  proper_hold_procedure:84, correct_and_complete_information:87, proper_call_closure:91, total:s(310,b.preset||'MTD') },
+    { agent_name:'Meera Joshi',  emp_id:'EMP006', professionalism_maintained:85, accurate_issue_probing:79, case_escalated_correctly:82,  proper_hold_procedure:78, correct_and_complete_information:81, proper_call_closure:84, total:s(280,b.preset||'MTD') },
+  ],
+  '/api/callmaster/pm/coaching-queue':        (b) => [
+    { source_call_id:'IB-2891', agent_name:'Meera Joshi',  call_quality_percentage:68.2, status:'pending' },
+    { source_call_id:'IB-3102', agent_name:'Rahul Singh',  call_quality_percentage:74.1, status:'pending' },
+  ],
+  '/api/callmaster/pm/analyst-scorecard':     (b) => mockPmAnalystScorecard(b.preset || 'MTD'),
+  '/api/callmaster/pm/fatal-analysis':        (b) => ({ fatalCount: s(180, b.preset||'MTD'), fatalPct: 2.8, fatalByScenario: [{ scenario:'Escalation Failure', count: s(80,b.preset||'MTD'), pct:44.4 }, { scenario:'Data Theft', count: s(18,b.preset||'MTD'), pct:10.0 }, { scenario:'Cuss Word', count: s(12,b.preset||'MTD'), pct:6.7 }] }),
+  '/api/callmaster/pm/scenario-breakdown':    (b) => ({ total: s(38500,b.preset||'MTD'), byScenario: [{ scenario:'Query', count:s(12000,b.preset||'MTD'), pct:31.2 }, { scenario:'Complaint', count:s(9800,b.preset||'MTD'), pct:25.5 }, { scenario:'Request', count:s(8400,b.preset||'MTD'), pct:21.8 }] }),
+  '/api/callmaster/pm/detail-analysis':       (b) => ({ parameters: [{ param:'Call Answered <5s', passRate:94.2, failRate:5.8 }, { param:'Escalated Correctly', passRate:91.1, failRate:8.9 }, { param:'Correct Info', passRate:88.4, failRate:11.6 }, { param:'Hold Procedure', passRate:87.2, failRate:12.8 }] }),
+  '/api/callmaster/pm/escalation-analysis':   (b) => ({ escalation_failures:s(94,b.preset||'MTD'), data_theft_cases:s(18,b.preset||'MTD'), competitor_mentions:s(44,b.preset||'MTD'), cuss_calls:s(12,b.preset||'MTD') }),
+  '/api/callmaster/pm/cst-crt-funnel':        (b) => mockPmCstCrt(b.preset || 'MTD'),
+  '/api/callmaster/pm/missed-opportunities':  (b) => mockPmMissedOpportunities(b.preset || 'MTD'),
+  '/api/callmaster/pm/nps-csat':              (b) => mockPmNpsCsat(b.preset || 'MTD'),
+  '/api/callmaster/pm/pitch-stage-analysis':  (b) => ({ stages:[{ stage:'Opening Rejected', count:s(7200,b.preset||'MTD'), pct:18.7 }, { stage:'Offering Rejected', count:s(5400,b.preset||'MTD'), pct:14.0 }, { stage:'After Listen Rejected', count:s(3100,b.preset||'MTD'), pct:8.1 }, { stage:'Sale Done', count:s(9800,b.preset||'MTD'), pct:25.5 }] }),
+  '/api/callmaster/pm/objection-rebuttal':    (b) => mockPmObjectionRebuttal(b.preset || 'MTD'),
+  '/api/callmaster/pm/inbound-explorer':      (b) => ({ rows:[{ agent_name:'Ravi Kumar', lob_name:'Query', audit_date:'2026-05-27', call_quality_percentage:82.1, fatal_flag:0 }, { agent_name:'Meera Joshi', lob_name:'Complaint', audit_date:'2026-05-27', call_quality_percentage:68.2, fatal_flag:1 }], total:s(38500,b.preset||'MTD'), page:1 }),
+  '/api/callmaster/pm/outbound-explorer':     (b) => ({ rows:[{ agent_name:'Ravi Kumar', lob_name:'Sales', audit_date:'2026-05-27', call_quality_percentage:79.4, fatal_flag:0 }], total:s(24200,b.preset||'MTD'), page:1 }),
   '/api/callmaster/bm/health':             (b) => ({ quality_score:87.4, total_calls:s(18500,b.preset||'MTD'), critical_count:s(64,b.preset||'MTD') }),
   '/api/callmaster/bm/process-breakdown':  (b) => ({ processes:[{name:'GNC Inbound',score:91.2,calls:s(8800,b.preset||'MTD')},{name:'Birlanu MCN',score:79.4,calls:s(9700,b.preset||'MTD')}] }),
   '/api/callmaster/bm/team-performance':   (b) => ({ agents:[{name:'Anita Sharma',score:97.2,calls:s(320,b.preset||'MTD'),risk:0,coaching:'None'}] }),
