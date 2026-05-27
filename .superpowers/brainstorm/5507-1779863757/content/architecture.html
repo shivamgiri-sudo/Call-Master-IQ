@@ -1,0 +1,242 @@
+<style>
+  body { background: #060a14; color: #e2e8f0; font-family: 'Inter', sans-serif; margin: 0; padding: 24px; }
+  h2 { font-size: 22px; font-weight: 800; color: #fff; margin: 0 0 6px; letter-spacing: -0.03em; }
+  .subtitle { color: #64748b; font-size: 13px; margin: 0 0 28px; }
+
+  /* TIER LAYOUT */
+  .arch { display: flex; flex-direction: column; gap: 0; }
+  .tier { display: flex; align-items: stretch; gap: 0; margin-bottom: 0; }
+  .tier-label {
+    writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg);
+    width: 36px; min-height: 80px; display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase;
+    color: #475569; flex-shrink: 0;
+  }
+  .tier-cards { display: flex; gap: 10px; flex: 1; padding: 10px 0; align-items: stretch; }
+  .connector { width: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .connector-line { width: 2px; height: 100%; background: linear-gradient(180deg, #1e293b, #1e293b); margin: 0 auto; position: relative; }
+
+  /* PERSONA CARDS */
+  .persona {
+    flex: 1; border-radius: 14px; padding: 16px 18px; border: 1px solid;
+    position: relative; cursor: default;
+  }
+  .persona .role { font-size: 9px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 6px; }
+  .persona h3 { font-size: 15px; font-weight: 700; margin: 0 0 8px; color: #fff; }
+  .persona .pages { font-size: 11px; color: #94a3b8; line-height: 1.6; }
+  .persona .pages span { display: inline-block; background: rgba(255,255,255,0.06); border-radius: 5px; padding: 1px 7px; margin: 2px 2px 2px 0; font-size: 10px; }
+  .persona .access { font-size: 10px; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.07); color: #64748b; }
+
+  .ceo { background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.03)); border-color: rgba(245,158,11,0.3); }
+  .ceo .role { color: #f59e0b; }
+  .tq { background: linear-gradient(135deg, rgba(139,92,246,0.1), rgba(139,92,246,0.03)); border-color: rgba(139,92,246,0.3); }
+  .tq .role { color: #a78bfa; }
+  .bm { background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.03)); border-color: rgba(59,130,246,0.3); }
+  .bm .role { color: #60a5fa; }
+  .pm { background: linear-gradient(135deg, rgba(6,214,160,0.1), rgba(6,214,160,0.03)); border-color: rgba(6,214,160,0.3); }
+  .pm .role { color: #06d6a0; }
+  .analyst { background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.03)); border-color: rgba(239,68,68,0.3); }
+  .analyst .role { color: #f87171; }
+  .admin { background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border-color: rgba(255,255,255,0.15); }
+  .admin .role { color: #e2e8f0; }
+
+  /* ARROW */
+  .arrow-row { display: flex; align-items: center; justify-content: center; padding: 4px 0 4px 36px; }
+  .arrow-down { color: #1e3a5f; font-size: 20px; letter-spacing: 4px; }
+
+  /* DATA LAYER */
+  .data-layer {
+    margin-top: 20px; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+    padding: 16px 20px; background: rgba(13,20,36,0.6);
+  }
+  .data-layer h4 { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #475569; margin: 0 0 12px; }
+  .db-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .db-box { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px; }
+  .db-box .db-label { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #475569; margin-bottom: 4px; }
+  .db-box .db-name { font-size: 12px; font-weight: 600; color: #94a3b8; }
+  .db-box .db-tables { font-size: 10px; color: #475569; margin-top: 3px; }
+
+  /* PROCESS TAGS */
+  .process-strip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .process-tag { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .out { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+  .inb { background: rgba(6,214,160,0.12); color: #06d6a0; border: 1px solid rgba(6,214,160,0.25); }
+  .chat { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); }
+  .email { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+
+  .section-title { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #475569; margin-bottom: 10px; }
+</style>
+
+<h2>Call Master — Org Dashboard Architecture</h2>
+<p class="subtitle">Multi-process quality intelligence platform · 6 personas · integrated into call-master-backend</p>
+
+<div class="section-title" style="margin-bottom:8px">Process Coverage</div>
+<div class="process-strip">
+  <span class="process-tag out">Outbound Calls</span>
+  <span class="process-tag inb">Inbound Calls</span>
+  <span class="process-tag chat">Chat Process</span>
+  <span class="process-tag email">Email Handling</span>
+</div>
+
+<div class="section-title">Persona Hierarchy & Page Access</div>
+<div class="arch">
+
+  <!-- ADMIN -->
+  <div class="tier">
+    <div class="tier-label">Super</div>
+    <div class="tier-cards">
+      <div class="persona admin" style="flex:1">
+        <div class="role">Admin (Super Access)</div>
+        <h3>Admin Dashboard</h3>
+        <div class="pages">
+          <span>All Persona Views</span><span>User Management</span><span>Role Assignment</span>
+          <span>Process Config</span><span>Data Source Mapping</span><span>System Health</span>
+        </div>
+        <div class="access">Separate login · Can impersonate any role · Full read-write</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><span class="arrow-down">↓ ↓ ↓ ↓ ↓</span></div>
+
+  <!-- CEO -->
+  <div class="tier">
+    <div class="tier-label">L1</div>
+    <div class="tier-cards">
+      <div class="persona ceo" style="flex:1">
+        <div class="role">CEO / Business Head</div>
+        <h3>Executive Command Center</h3>
+        <div class="pages">
+          <span>Org Quality Score</span><span>Process Health Matrix</span><span>SLA Compliance</span>
+          <span>Risk Exposure</span><span>Branch Comparison</span><span>Month Trend</span>
+          <span>Critical Alerts</span>
+        </div>
+        <div class="access">Read-only · All processes · All branches · No analyst-level detail</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><span class="arrow-down">↓</span></div>
+
+  <!-- T&Q HEAD -->
+  <div class="tier">
+    <div class="tier-label">L2</div>
+    <div class="tier-cards">
+      <div class="persona tq" style="flex:1">
+        <div class="role">Training & Quality Head</div>
+        <h3>Quality Intelligence Hub</h3>
+        <div class="pages">
+          <span>Process-wise Q Scores</span><span>TNI Heatmap</span><span>Coaching Queue</span>
+          <span>Calibration Tracker</span><span>Audit Efficiency</span><span>Analyst Leaderboard</span>
+          <span>Parameter Drift</span><span>SLA Tracker</span>
+        </div>
+        <div class="access">Read-only · All processes · Analyst-level detail · No PII</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><span class="arrow-down">↓ &nbsp;&nbsp;&nbsp; ↓</span></div>
+
+  <!-- BRANCH MANAGER -->
+  <div class="tier">
+    <div class="tier-label">L3</div>
+    <div class="tier-cards">
+      <div class="persona bm" style="flex:1">
+        <div class="role">Branch Manager</div>
+        <h3>Branch Operations View</h3>
+        <div class="pages">
+          <span>Branch Quality Score</span><span>Team Performance</span><span>Daily SLA</span>
+          <span>Process Breakdown</span><span>Risk Calls</span><span>Improvement Actions</span>
+          <span>Analyst Rankings</span>
+        </div>
+        <div class="access">Own branch only · All processes in branch · No cross-branch data</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><span class="arrow-down">↓</span></div>
+
+  <!-- PROCESS MANAGER -->
+  <div class="tier">
+    <div class="tier-label">L4</div>
+    <div class="tier-cards">
+      <div class="persona pm" style="flex:1">
+        <div class="role">Process Manager (Outbound)</div>
+        <h3>Process Deep-Dive</h3>
+        <div class="pages">
+          <span>Process Quality Score</span><span>Parameter Breakdown</span><span>Call Explorer</span>
+          <span>Pitch / Defect Analysis</span><span>Analyst Scorecard</span><span>TNI Report</span>
+          <span>Daily Trends</span><span>Evidence View</span>
+        </div>
+        <div class="access">Own process only · Outbound OR Inbound OR Chat OR Email</div>
+      </div>
+      <div class="persona pm" style="flex:1">
+        <div class="role">Process Manager (Inbound)</div>
+        <h3>Process Deep-Dive</h3>
+        <div class="pages">
+          <span>Process Quality Score</span><span>Parameter Breakdown</span><span>Call Explorer</span>
+          <span>Resolution Rate</span><span>Analyst Scorecard</span><span>TNI Report</span>
+          <span>Daily Trends</span><span>Evidence View</span>
+        </div>
+        <div class="access">Own process only · Inbound process view</div>
+      </div>
+      <div class="persona pm" style="flex:1">
+        <div class="role">Process Manager (Chat/Email)</div>
+        <h3>Process Deep-Dive</h3>
+        <div class="pages">
+          <span>CSAT Score</span><span>Response Quality</span><span>Ticket Explorer</span>
+          <span>SLA Breach Tracker</span><span>Analyst Scorecard</span><span>TNI Report</span>
+          <span>Daily Trends</span>
+        </div>
+        <div class="access">Own process only · Chat/Email combined or separate</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><span class="arrow-down">↓</span></div>
+
+  <!-- ANALYST -->
+  <div class="tier">
+    <div class="tier-label">L5</div>
+    <div class="tier-cards">
+      <div class="persona analyst" style="flex:1">
+        <div class="role">Analyst / Agent</div>
+        <h3>My Performance Dashboard</h3>
+        <div class="pages">
+          <span>My Quality Score</span><span>My Defects</span><span>My Call List</span>
+          <span>Evidence Review</span><span>Coaching Notes</span><span>Improvement Plan</span>
+          <span>Score Trend</span>
+        </div>
+        <div class="access">Own data only · No peer comparison · No other analyst data</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- DATA LAYER -->
+<div class="data-layer">
+  <h4>Data Layer (Multi-Source · Schema mapped per process)</h4>
+  <div class="db-grid">
+    <div class="db-box">
+      <div class="db-label">Outbound DB</div>
+      <div class="db-name">db_external / Shivamgiri</div>
+      <div class="db-tables">CallDetails, AgentMaster, ScoreCard...</div>
+    </div>
+    <div class="db-box">
+      <div class="db-label">Inbound DB</div>
+      <div class="db-name">TBD — schema pending</div>
+      <div class="db-tables">Audit table, disposition data...</div>
+    </div>
+    <div class="db-box">
+      <div class="db-label">Chat DB</div>
+      <div class="db-name">TBD — schema pending</div>
+      <div class="db-tables">Chat transcripts, CSAT, tickets...</div>
+    </div>
+    <div class="db-box">
+      <div class="db-label">Email DB</div>
+      <div class="db-name">TBD — schema pending</div>
+      <div class="db-tables">Email audit, resolution time, quality...</div>
+    </div>
+  </div>
+</div>

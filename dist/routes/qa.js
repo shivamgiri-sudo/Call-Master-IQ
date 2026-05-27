@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_1 = require("../middleware/auth");
+const rbac_1 = require("../middleware/rbac");
+const qaController_1 = require("../controllers/qaController");
+const router = (0, express_1.Router)();
+router.use(auth_1.jwtAuth, rbac_1.loadUserScope);
+router.get('/audits', qaController_1.listAudits);
+router.post('/audits', qaController_1.createAudit);
+router.get('/audits/:id', qaController_1.getAudit);
+router.put('/audits/:id', qaController_1.updateAudit);
+router.post('/calls/:id/re-audit', qaController_1.triggerReaudit);
+exports.default = router;

@@ -1,0 +1,15 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_1 = require("../middleware/auth");
+const rbac_1 = require("../middleware/rbac");
+const coachingController_1 = require("../controllers/coachingController");
+const router = (0, express_1.Router)();
+router.use(auth_1.jwtAuth, rbac_1.loadUserScope);
+router.get('/', coachingController_1.listCoaching);
+router.post('/generate', coachingController_1.generateCoaching);
+router.get('/my-assignments', coachingController_1.myAssignments);
+router.get('/:id', coachingController_1.getCoaching);
+router.post('/:id/assign', coachingController_1.assign);
+router.patch('/assignments/:id/status', coachingController_1.updateStatus);
+exports.default = router;

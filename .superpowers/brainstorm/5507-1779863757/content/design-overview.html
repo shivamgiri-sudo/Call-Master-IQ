@@ -1,0 +1,403 @@
+<style>
+  * { box-sizing: border-box; }
+  body { background: #060a14; color: #e2e8f0; font-family: 'Inter', sans-serif; margin: 0; padding: 24px 28px; }
+  h2 { font-size: 24px; font-weight: 800; color: #fff; margin: 0 0 4px; letter-spacing: -0.04em; }
+  .subtitle { color: #64748b; font-size: 13px; margin: 0 0 30px; }
+
+  /* SECTION */
+  .section { margin-bottom: 32px; }
+  .section-label {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
+    color: #3b82f6; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: rgba(59,130,246,0.2); }
+
+  /* GRID */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+
+  /* CARD */
+  .card {
+    background: rgba(13,20,36,0.8); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px; padding: 16px 18px;
+  }
+  .card h3 { font-size: 13px; font-weight: 700; color: #fff; margin: 0 0 6px; }
+  .card p { font-size: 11px; color: #64748b; margin: 0; line-height: 1.6; }
+
+  /* PERSONA BADGE */
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+  .ceo-badge { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+  .tq-badge  { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); }
+  .bm-badge  { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+  .pm-badge  { background: rgba(6,214,160,0.15);  color: #06d6a0; border: 1px solid rgba(6,214,160,0.25); }
+  .an-badge  { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+  .ad-badge  { background: rgba(255,255,255,0.08); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.15); }
+
+  /* PAGE LIST */
+  .page-list { margin: 0; padding: 0; list-style: none; }
+  .page-list li {
+    font-size: 11px; color: #94a3b8; padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .page-list li:last-child { border-bottom: none; }
+  .page-list li::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #1e3a5f; flex-shrink: 0; }
+  .page-list li b { color: #e2e8f0; }
+
+  /* PROCESS TAGS */
+  .ptag { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 9px; font-weight: 700; margin: 1px; }
+  .out  { background: rgba(59,130,246,0.15); color: #60a5fa; }
+  .inb  { background: rgba(6,214,160,0.12); color: #06d6a0; }
+  .chat { background: rgba(139,92,246,0.12); color: #a78bfa; }
+  .email{ background: rgba(245,158,11,0.12); color: #fbbf24; }
+
+  /* STACK ROW */
+  .stack-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .stack-chip {
+    padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 600;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: #94a3b8;
+  }
+
+  /* FILE TREE */
+  .tree { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 11px; line-height: 1.8; color: #64748b; }
+  .tree .dir { color: #60a5fa; }
+  .tree .file { color: #94a3b8; }
+  .tree .comment { color: #1e3a5f; }
+  .tree .highlight { color: #06d6a0; }
+
+  /* FLOW */
+  .flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .flow-step { padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: #94a3b8; }
+  .flow-arrow { color: #1e3a5f; font-size: 14px; }
+  .flow-step.active { background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.3); color: #60a5fa; }
+
+  /* PERSONA SECTION CARD */
+  .persona-card {
+    border-radius: 14px; padding: 16px 18px; border: 1px solid;
+  }
+  .persona-card .pc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .persona-card .pc-title { font-size: 14px; font-weight: 700; color: #fff; }
+  .persona-card .pc-sub { font-size: 10px; color: #475569; margin-top: 2px; }
+  .ceo-card  { background: linear-gradient(135deg, rgba(245,158,11,0.06), rgba(245,158,11,0.02)); border-color: rgba(245,158,11,0.2); }
+  .tq-card   { background: linear-gradient(135deg, rgba(139,92,246,0.06), rgba(139,92,246,0.02)); border-color: rgba(139,92,246,0.2); }
+  .bm-card   { background: linear-gradient(135deg, rgba(59,130,246,0.06), rgba(59,130,246,0.02));  border-color: rgba(59,130,246,0.2); }
+  .pm-card   { background: linear-gradient(135deg, rgba(6,214,160,0.06), rgba(6,214,160,0.02));   border-color: rgba(6,214,160,0.2); }
+  .an-card   { background: linear-gradient(135deg, rgba(239,68,68,0.06), rgba(239,68,68,0.02));   border-color: rgba(239,68,68,0.2); }
+  .ad-card   { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.1); }
+
+  /* TWO COL IN PERSONA */
+  .pc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  hr { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 28px 0; }
+</style>
+
+<h2>Call Master — Full Design Specification</h2>
+<p class="subtitle">Org-level multi-process quality intelligence · call-master-backend integration · 6 personas</p>
+
+<!-- ═══════════════════════════════ TECH STACK ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Tech Stack & Architecture Decisions</div>
+  <div class="grid-3">
+    <div class="card">
+      <h3>Backend</h3>
+      <p>New route modules added to existing <b>call-master-backend</b> (TypeScript/Express). New folder <code>src/callmaster/</code> with routes, services, repositories per persona. Shares existing DB pools + JWT middleware.</p>
+      <div class="stack-row">
+        <span class="stack-chip">TypeScript</span><span class="stack-chip">Express 5</span>
+        <span class="stack-chip">mysql2/promise</span><span class="stack-chip">JWT</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Frontend</h3>
+      <p><b>Multi-file vanilla JS</b> served from <code>public/callmaster/</code>. Single shell HTML + separated page JS files per persona. No build step. Same OLED dark theme as Finnable. ApexCharts via CDN.</p>
+      <div class="stack-row">
+        <span class="stack-chip">Vanilla JS</span><span class="stack-chip">ApexCharts</span>
+        <span class="stack-chip">OLED Dark</span><span class="stack-chip">Inter + JetBrains Mono</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Data Layer</h3>
+      <p><b>Process-agnostic repository pattern.</b> Each process (Outbound/Inbound/Chat/Email) has its own repo class that reads from its DB/table. A <b>ProcessRegistry</b> config maps process_id → DB pool → table → parameter schema.</p>
+      <div class="stack-row">
+        <span class="stack-chip">Repository Pattern</span><span class="stack-chip">Process Registry</span>
+        <span class="stack-chip">Mock Toggle</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ FILE STRUCTURE ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-label">File Structure</div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Backend — <code>src/callmaster/</code></h3>
+      <div class="tree">
+        <div><span class="dir">src/callmaster/</span></div>
+        <div>&nbsp;&nbsp;<span class="dir">config/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="highlight">processRegistry.ts</span> <span class="comment">← process→DB→schema map</span></div>
+        <div>&nbsp;&nbsp;<span class="dir">middleware/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">cmAuth.ts</span> <span class="comment">← role + process guard</span></div>
+        <div>&nbsp;&nbsp;<span class="dir">repositories/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">baseRepository.ts</span> <span class="comment">← common query builder</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">outboundRepo.ts</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">inboundRepo.ts</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">chatRepo.ts</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">emailRepo.ts</span></div>
+        <div>&nbsp;&nbsp;<span class="dir">services/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">orgService.ts</span> <span class="comment">← CEO aggregates</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">qualityService.ts</span> <span class="comment">← T&Q / scoring</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">processService.ts</span> <span class="comment">← PM deep-dive</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">analystService.ts</span> <span class="comment">← self-view</span></div>
+        <div>&nbsp;&nbsp;<span class="dir">routes/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">cmAuth.ts</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">ceo.ts</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">tq.ts</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">bm.ts</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">pm.ts</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">analyst.ts</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">admin.ts</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Frontend — <code>public/callmaster/</code></h3>
+      <div class="tree">
+        <div><span class="dir">public/callmaster/</span></div>
+        <div>&nbsp;&nbsp;<span class="highlight">index.html</span> <span class="comment">← shell + login screen</span></div>
+        <div>&nbsp;&nbsp;<span class="dir">css/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">design-system.css</span> <span class="comment">← OLED dark theme</span></div>
+        <div>&nbsp;&nbsp;<span class="dir">js/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="highlight">app.js</span> <span class="comment">← router, auth, API client</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">mock.js</span> <span class="comment">← USE_MOCK_DATA toggle</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="dir">shared/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">components.js</span> <span class="comment">← kpi(), table(), drawer()</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">charts.js</span> <span class="comment">← ApexCharts wrappers</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="dir">pages/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">ceo.js</span> <span class="comment">← 7 pages</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">tq.js</span> <span class="comment">← 8 pages</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">bm.js</span> <span class="comment">← 6 pages</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">pm.js</span> <span class="comment">← 8 pages (process-aware)</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">analyst.js</span> <span class="comment">← 6 pages (own data only)</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">admin.js</span> <span class="comment">← 6 pages</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ AUTH FLOW ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Authentication & Access Control</div>
+  <div class="card">
+    <h3>Login → Role → Scope → JWT</h3>
+    <div class="flow" style="margin-bottom: 14px;">
+      <span class="flow-step active">Username + Password</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step active">cmAuth validates</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step active">JWT issued with role + branch_ids + process_ids</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step active">Frontend loads persona view</span>
+    </div>
+    <div class="grid-4" style="margin-top: 12px;">
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px 12px">
+        <div style="font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#475569;margin-bottom:6px">Admin</div>
+        <div style="font-size:11px;color:#94a3b8;line-height:1.6">All access · impersonate roles · manage users · configure processes</div>
+      </div>
+      <div style="background:rgba(245,158,11,0.05);border:1px solid rgba(245,158,11,0.15);border-radius:10px;padding:10px 12px">
+        <div style="font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#f59e0b;margin-bottom:6px">CEO</div>
+        <div style="font-size:11px;color:#94a3b8;line-height:1.6">All branches · all processes · summary only · no call-level detail</div>
+      </div>
+      <div style="background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.15);border-radius:10px;padding:10px 12px">
+        <div style="font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#a78bfa;margin-bottom:6px">T&Q Head</div>
+        <div style="font-size:11px;color:#94a3b8;line-height:1.6">All processes · analyst-level detail · no PII masking bypass</div>
+      </div>
+      <div style="background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:10px;padding:10px 12px">
+        <div style="font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#60a5fa;margin-bottom:6px">Branch Manager</div>
+        <div style="font-size:11px;color:#94a3b8;line-height:1.6">Own branch_ids only · all processes in branch · no cross-branch</div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top:10px">
+      <div style="background:rgba(6,214,160,0.04);border:1px solid rgba(6,214,160,0.15);border-radius:10px;padding:10px 12px">
+        <div style="font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#06d6a0;margin-bottom:6px">Process Manager</div>
+        <div style="font-size:11px;color:#94a3b8;line-height:1.6">Assigned process_ids only · call-level detail · evidence + transcripts within own process · can manage analysts in their process</div>
+      </div>
+      <div style="background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.15);border-radius:10px;padding:10px 12px">
+        <div style="font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#f87171;margin-bottom:6px">Analyst</div>
+        <div style="font-size:11px;color:#94a3b8;line-height:1.6">Own data only · own calls/chats/emails · own scores · own coaching notes · no peer data</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PERSONA PAGES ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Page Inventory by Persona</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+
+    <div class="persona-card ceo-card">
+      <div class="pc-head">
+        <div><div class="pc-title">CEO — Executive Command Center</div><div class="pc-sub">Bird's-eye org view · no call-level detail</div></div>
+        <span class="badge ceo-badge">L1</span>
+      </div>
+      <ul class="page-list">
+        <li><b>Org Quality Scorecard</b> — Overall + per-process quality score, MTD/WTD/D-1</li>
+        <li><b>Process Health Matrix</b> — Outbound vs Inbound vs Chat vs Email side-by-side KPIs</li>
+        <li><b>Branch Comparison</b> — Branch ranking by quality, volume, risk exposure</li>
+        <li><b>SLA Compliance Overview</b> — Audit SLA % by process and branch</li>
+        <li><b>Risk Exposure Dashboard</b> — High risk call count, top categories, trend</li>
+        <li><b>Month Trend</b> — Quality score movement across all processes, 90 days</li>
+        <li><b>Critical Alerts Feed</b> — Fatal defects, SLA breaches, analyst watchlist</li>
+      </ul>
+    </div>
+
+    <div class="persona-card tq-card">
+      <div class="pc-head">
+        <div><div class="pc-title">T&Q Head — Quality Intelligence Hub</div><div class="pc-sub">Cross-process quality ownership · coaching strategy</div></div>
+        <span class="badge tq-badge">L2</span>
+      </div>
+      <ul class="page-list">
+        <li><b>Quality Deep-Dive</b> — Per-process parameter breakdown, score trends</li>
+        <li><b>TNI Heatmap</b> — Training needs by parameter × analyst, all processes</li>
+        <li><b>Analyst Leaderboard</b> — Cross-process rankings, coaching priority queue</li>
+        <li><b>Coaching Queue</b> — Pending sessions, completed vs planned</li>
+        <li><b>Calibration Tracker</b> — Calibration sessions, variance scores</li>
+        <li><b>Audit Efficiency</b> — Manual vs AI QC volumes, pending audits</li>
+        <li><b>Parameter Drift</b> — Parameters declining over time (early warning)</li>
+        <li><b>SLA Tracker</b> — Audit SLA performance per auditor per process</li>
+      </ul>
+    </div>
+
+    <div class="persona-card bm-card">
+      <div class="pc-head">
+        <div><div class="pc-title">Branch Manager — Branch Operations View</div><div class="pc-sub">Own branch · all processes · team performance</div></div>
+        <span class="badge bm-badge">L3</span>
+      </div>
+      <ul class="page-list">
+        <li><b>Branch Health Dashboard</b> — Combined quality score across all branch processes</li>
+        <li><b>Process Breakdown</b> — Per-process quality within the branch</li>
+        <li><b>Team Performance</b> — Analyst-wise quality, volume, risk, coaching status</li>
+        <li><b>Daily SLA</b> — Today's audit coverage, pending, breached</li>
+        <li><b>Risk Call Feed</b> — High-risk calls from branch, action required</li>
+        <li><b>Action Items</b> — Pending actions, coaching follow-ups, escalations</li>
+      </ul>
+    </div>
+
+    <div class="persona-card pm-card">
+      <div class="pc-head">
+        <div><div class="pc-title">Process Manager — Process Deep-Dive</div><div class="pc-sub">Own process only · full call-level access · evidence</div></div>
+        <span class="badge pm-badge">L4</span>
+      </div>
+      <ul class="page-list">
+        <li><b>Process Overview</b> — Quality score, volume, defects, pitch/resolution stats</li>
+        <li><b>Parameter Breakdown</b> — Process-specific parameters (weights + scores + trend)</li>
+        <li><b>Call / Chat / Email Explorer</b> — Full search, filter, pagination</li>
+        <li><b>Analyst Scorecard</b> — Analysts in this process, ranked by score</li>
+        <li><b>TNI Report</b> — This process's training needs breakdown</li>
+        <li><b>Daily Quality Trends</b> — Day-wise score + volume + defect chart</li>
+        <li><b>Evidence Viewer</b> — Full call detail, transcript highlights, scoring evidence</li>
+        <li><b>Pitch / Defect Analysis</b> — Outbound: pitch funnel · Chat/Email: resolution quality</li>
+      </ul>
+    </div>
+
+    <div class="persona-card an-card">
+      <div class="pc-head">
+        <div><div class="pc-title">Analyst — My Performance Dashboard</div><div class="pc-sub">Own data only · self-improvement focus</div></div>
+        <span class="badge an-badge">L5</span>
+      </div>
+      <ul class="page-list">
+        <li><b>My Score Overview</b> — Quality score across all my processes, MTD/WTD/D-1</li>
+        <li><b>My Defect Breakdown</b> — Parameters where I'm losing marks</li>
+        <li><b>My Call / Chat / Email List</b> — My audited interactions, filterable</li>
+        <li><b>Evidence Review</b> — My call detail + transcript + scoring rationale</li>
+        <li><b>Score Trend</b> — My day-wise quality movement, target line</li>
+        <li><b>Coaching Notes</b> — Notes received from T&Q / Process Manager</li>
+      </ul>
+    </div>
+
+    <div class="persona-card ad-card">
+      <div class="pc-head">
+        <div><div class="pc-title">Admin — System Control Panel</div><div class="pc-sub">Full access · configuration · user management</div></div>
+        <span class="badge ad-badge">Admin</span>
+      </div>
+      <ul class="page-list">
+        <li><b>User Management</b> — Create/edit/deactivate users, assign roles</li>
+        <li><b>Branch & Process Config</b> — Define branches, assign processes, map analysts</li>
+        <li><b>Data Source Mapping</b> — Map process → DB → table → parameter schema</li>
+        <li><b>Role Impersonation</b> — Preview any persona's view for QA/support</li>
+        <li><b>System Health</b> — DB pool status, API response times, error rates</li>
+        <li><b>Audit Configuration</b> — Manual vs AI QC rules, parameter weights per process</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ DATA LAYER ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Data Layer Architecture</div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>ProcessRegistry — Core Config Object</h3>
+      <p style="margin-bottom:10px">A single config file maps every process to its data source. When schemas arrive, only this file and the corresponding repo need updating — all services and routes stay unchanged.</p>
+      <div class="tree">
+        <span class="comment">// src/callmaster/config/processRegistry.ts</span><br>
+        <span class="file">process_id: 'outbound'</span><br>
+        &nbsp;&nbsp;<span class="highlight">dbPool:</span> <span class="file">externalPool</span><br>
+        &nbsp;&nbsp;<span class="highlight">table:</span> <span class="file">'CallDetails'</span><br>
+        &nbsp;&nbsp;<span class="highlight">agentCol:</span> <span class="file">'AgentName'</span><br>
+        &nbsp;&nbsp;<span class="highlight">dateCol:</span> <span class="file">'CallDate'</span><br>
+        &nbsp;&nbsp;<span class="highlight">scoreCol:</span> <span class="file">'QualityScore'</span><br>
+        &nbsp;&nbsp;<span class="highlight">parameters:</span> <span class="file">['PrepaidPitch', 'ObjectionHandling', ...]</span><br>
+        &nbsp;&nbsp;<span class="highlight">repo:</span> <span class="file">OutboundRepository</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Development Strategy</h3>
+      <p style="margin-bottom:10px">All 4 processes use <b>USE_MOCK_DATA = true</b> initially. As each DB schema is shared, we flip the repo to live queries one process at a time. No disruption to other processes.</p>
+      <div class="flow" style="flex-direction:column;align-items:flex-start;">
+        <div style="display:flex;align-items:center;gap:8px"><span class="ptag out">Outbound</span><span style="font-size:11px;color:#06d6a0">→ uses Finnable's existing DB (db_external.CallDetails)</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><span class="ptag inb">Inbound</span><span style="font-size:11px;color:#475569">→ mock until schema shared</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><span class="ptag chat">Chat</span><span style="font-size:11px;color:#475569">→ mock until schema shared</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><span class="ptag email">Email</span><span style="font-size:11px;color:#475569">→ mock until schema shared</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ BUILD ORDER ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Build Order (Phased)</div>
+  <div class="grid-3">
+    <div class="card" style="border-color:rgba(59,130,246,0.3)">
+      <h3 style="color:#60a5fa">Phase 1 — Foundation</h3>
+      <ul class="page-list">
+        <li>DB schema + user_master extension</li>
+        <li>ProcessRegistry + base repository</li>
+        <li>Auth routes + JWT with role/process/branch</li>
+        <li>Frontend shell + design system CSS</li>
+        <li>Login screen + role-based router</li>
+        <li>Mock data layer for all processes</li>
+      </ul>
+    </div>
+    <div class="card" style="border-color:rgba(6,214,160,0.3)">
+      <h3 style="color:#06d6a0">Phase 2 — Core Personas</h3>
+      <ul class="page-list">
+        <li>CEO pages (7) — org-level aggregates</li>
+        <li>T&Q Head pages (8) — quality intelligence</li>
+        <li>Process Manager pages (8) — deep-dive</li>
+        <li>All with mock data, all charts live</li>
+        <li>Outbound process wired to real DB</li>
+      </ul>
+    </div>
+    <div class="card" style="border-color:rgba(245,158,11,0.3)">
+      <h3 style="color:#f59e0b">Phase 3 — Remaining Personas + Live Data</h3>
+      <ul class="page-list">
+        <li>Branch Manager pages (6)</li>
+        <li>Analyst self-view pages (6)</li>
+        <li>Admin panel (6)</li>
+        <li>Wire Inbound/Chat/Email as schemas arrive</li>
+        <li>Export (CSV/PDF per persona)</li>
+      </ul>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,303 @@
+<style>
+  * { box-sizing: border-box; }
+  body { background: #060a14; color: #e2e8f0; font-family: 'Inter', sans-serif; margin: 0; padding: 24px 28px; }
+  h2 { font-size: 22px; font-weight: 800; color: #fff; margin: 0 0 4px; letter-spacing: -0.04em; }
+  .subtitle { color: #64748b; font-size: 13px; margin: 0 0 28px; }
+
+  .section-label {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
+    color: #3b82f6; margin-bottom: 12px; margin-top: 28px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: rgba(59,130,246,0.2); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+  .card { background: rgba(13,20,36,0.8); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 16px 18px; }
+  .card h3 { font-size: 13px; font-weight: 700; color: #fff; margin: 0 0 10px; }
+
+  /* GAP ITEMS */
+  .gap-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .gap-item:last-child { border-bottom: none; }
+  .gap-badge { flex-shrink: 0; padding: 2px 8px; border-radius: 5px; font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
+  .new { background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+  .enhance { background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+  .ok { background: rgba(6,214,160,0.15); color: #06d6a0; border: 1px solid rgba(6,214,160,0.25); }
+  .gap-text h4 { font-size: 12px; font-weight: 700; color: #e2e8f0; margin: 0 0 3px; }
+  .gap-text p { font-size: 11px; color: #64748b; margin: 0; line-height: 1.55; }
+  .gap-text .where { font-size: 10px; color: #3b82f6; margin-top: 4px; font-weight: 600; }
+
+  /* PAGE MAPPING TABLE */
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th { text-align: left; padding: 8px 10px; font-size: 9px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #475569; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #94a3b8; vertical-align: top; }
+  td:first-child { color: #e2e8f0; font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 9px; font-weight: 700; margin: 1px; }
+  .tag-new { background: rgba(239,68,68,0.15); color: #f87171; }
+  .tag-upd { background: rgba(245,158,11,0.15); color: #fbbf24; }
+  .tag-ok  { background: rgba(6,214,160,0.12); color: #06d6a0; }
+</style>
+
+<h2>Looker vs Call Master — Complete Gap Analysis</h2>
+<p class="subtitle">GNC Inbound AI Quality Dashboard · 9 pages reviewed · Inbound process only</p>
+
+<div class="section-label">Legend</div>
+<div style="display:flex;gap:10px;margin-bottom:20px">
+  <span class="tag tag-new">NEW — not in design at all</span>
+  <span class="tag tag-upd">ENHANCE — exists but incomplete</span>
+  <span class="tag tag-ok">COVERED — already in spec</span>
+</div>
+
+<!-- ═══ GAP 1: FATAL ANALYSIS PAGE ═══ -->
+<div class="section-label">Gap 1 — Fatal Analysis (Dedicated Page — MISSING ENTIRELY)</div>
+<div class="card">
+  <h3>What Looker has · What we're missing</h3>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Fatal% as a primary top-level KPI everywhere</h4>
+      <p>Every page shows: CQ Score%, Audit Count, Fatal Count, Fatal%. Fatal% = fatal_count / audit_count × 100. Red color when high. Currently our spec tracks <code>is_critical_call</code> count but never surfaces Fatal% as a standalone KPI with color coding.</p>
+      <div class="where">→ Add to: CEO Scorecard, T&Q Quality Deep-Dive, PM Overview, Branch Health, Analyst Overview</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>"Without Fatal CQ Score%" — separate quality metric</h4>
+      <p>A second quality score that recalculates CQ% <em>excluding all fatal calls</em>. Shows the "true" quality of non-fatal work. In Looker: CQ Score% = 26%, Without Fatal = 36%. Our spec has only one quality score.</p>
+      <div class="where">→ Add computed field to all quality KPI endpoints: <code>cq_score_excl_fatal</code></div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Top 5 Fatal Contributors — agent-wise fatal leaderboard</h4>
+      <p>Table: Agent Name | Audit Count | Fatal Count | Fatal% (red-coded by severity). Ranked by Fatal%. Completely separate from quality leaderboard. The worst quality agent may not be the worst fatal agent.</p>
+      <div class="where">→ New endpoint: <code>POST /api/callmaster/tq/fatal-contributors</code> · Add section to T&Q + PM pages</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Day Wise Fatal% trend chart</h4>
+      <p>Bar chart: each day = fatal count + fatal% label. Shows spikes (May 25 had 75% fatal). Our day-wise trends show quality score only, not fatal% separately.</p>
+      <div class="where">→ Add fatal% line overlay to all day-wise trend charts</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Scenario Wise Fatal Count — Query/Complaint/Request/Sale Done fatal breakdown</h4>
+      <p>4 KPI tiles: Query Fatal (52), Complaint Fatal (18), Request Fatal, Sale Done Fatal (0). Then a day × scenario heatmap table + week × scenario table with fatal%. Fatals broken down by call scenario type.</p>
+      <div class="where">→ New endpoint: <code>POST /api/callmaster/tq/fatal-by-scenario</code></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GAP 2: SCENARIO DIMENSION ═══ -->
+<div class="section-label">Gap 2 — Scenario Dimension (MISSING ENTIRELY)</div>
+<div class="card">
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Scenario / Sub-Scenario as a first-class filter dimension</h4>
+      <p>Every Looker page has a "Scenario Wise" filter dropdown. Scenarios: <strong>Query, Complaint, Request, Sale Done</strong>. Sub-scenarios exist under each. This is how inbound calls are categorized by reason. Our entire spec has no concept of Scenario — we only have process (Inbound/Outbound) and call type.</p>
+      <div class="where">→ Add <code>scenario</code> and <code>sub_scenario</code> filter params to all Inbound endpoints. Add Scenario filter to frontend filter bar for Inbound pages.</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Scenario Wise Count (Detail Analysis)</h4>
+      <p>Query Count (202), Complaint Count (57), Request Count (0), Sale Done Count (1). Top-5 scenario tables with donut charts — one per scenario type. Day × Scenario audit count heatmap. Week × Scenario audit count table.</p>
+      <div class="where">→ New endpoint: <code>POST /api/callmaster/pm/scenario-breakdown</code> · New section in PM Detail Analysis page</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GAP 3: DETAIL ANALYSIS PAGE ═══ -->
+<div class="section-label">Gap 3 — Detail Analysis Page (MISSING ENTIRELY)</div>
+<div class="card">
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Agent & Parameter Wise CQ Score% table</h4>
+      <p>Per-agent table showing every parameter score individually: Agent | TQ/MQ/BQ | Audit Count | CQ% | Fatal Count | Fatal% | Opening% | Soft Skills% | Hold Procedure% | Resolution% | Closing%. Color-coded CQ% (red when low). This is the most detailed analyst performance view. Filterable by date range + scenario.</p>
+      <div class="where">→ New endpoint: <code>POST /api/callmaster/pm/agent-parameter-scorecard</code> · Replace/extend existing analyst-scorecard</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Day Wise Quality Performance table</h4>
+      <p>Date | Audit Count | CQ Score% | Fatal Count | Fatal% | Opening% | Soft Skills% | Hold Procedure% | Resolution% | Closing%. Each row is one day. Filterable by agent + scenario. Shows parameter score movement day by day. Different from our trend charts — this is tabular.</p>
+      <div class="where">→ New endpoint: <code>POST /api/callmaster/pm/daywise-performance</code></div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Week Wise Quality Performance table</h4>
+      <p>Week 1/2/3/4 | Audit Count | CQ Score% | Fatal Count | Fatal% | Opening% | Soft Skills% | Hold Procedure% | Resolution% | Closing% + Grand Total row. Same as day-wise but rolled up to calendar week of month.</p>
+      <div class="where">→ Add week grouping to same endpoint with <code>granularity: 'week'</code> param</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>TQ/MQ/BQ Agent Classification</h4>
+      <p>Agents tagged as TQ (Top Quality), MQ (Mid Quality), BQ (Bottom Quality) — visible in the agent parameter table. A performance band label per agent. Not the same as quality score band per call.</p>
+      <div class="where">→ Computed field in agent scorecard endpoint based on avg CQ% thresholds (e.g. TQ ≥ 90%, MQ 80–90%, BQ &lt; 80%)</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GAP 4: POTENTIAL ESCALATION PAGE ═══ -->
+<div class="section-label">Gap 4 — Potential Escalation Page (EXISTS IN SPEC BUT FAR TOO THIN)</div>
+<div class="card">
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Top Negative Signals — 5 distinct sentiment categories</h4>
+      <p>Separate KPI tiles for: <strong>Abuse | Threat | Frustration | Slang | Sarcasm</strong>. Each is a count with its own trend. Currently our spec lumps all negative signals into "high risk". These are 5 separate AI-detected sentiment categories from the transcript.</p>
+      <div class="where">→ New endpoint: <code>POST /api/callmaster/tq/negative-signals</code>. New section on Escalation page for all 5 types.</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Social Media & Consumer Court Threat — specific tracking</h4>
+      <p>A dedicated section tracking calls where customer threatened social media escalation or consumer court. Table: CallDate | Founder Names | Social Media | Consumer Court | Total. This is distinct from general risk — it's reputational risk.</p>
+      <div class="where">→ New field in escalation endpoint: <code>social_media_threat</code>, <code>consumer_court_threat</code></div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Potential Scam — day-wise table</h4>
+      <p>Day × (System Manipulation | Financial Fraud | Collusion | Policy Communication Failure | Total). Heat-mapped by count. Clicking a cell shows the individual lead records. Different from our existing <code>is_critical_call</code> — this is a dedicated scam tracking view.</p>
+      <div class="where">→ New endpoint: <code>POST /api/callmaster/tq/potential-scam</code></div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Month Wise Negative Signal Trend (stacked bar)</h4>
+      <p>Stacked bar chart by month: Frustration (orange) | Threat (blue) | Slang (green) | Abuse (red). Shows whether negative sentiment is trending up over months. Critical for CEO view too.</p>
+      <div class="where">→ Add to escalation endpoint response + CEO trend page</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Escalation Detail Panel — full record view</h4>
+      <p>Clicking a flagged lead shows: Call Date | Lead ID | Agent Name | Phone No | Alert type | Sensitive Word Used | Negative Word | Scenario | Sub Scenario | <strong>Sensitive word context</strong> (AI explanation) | Area for Improvement | Top Negative Signals. Much richer than our current call detail drawer.</p>
+      <div class="where">→ Extend <code>GET /api/callmaster/pm/call/:id</code> to include: <code>negative_signals</code>, <code>sensitive_word_context</code>, <code>area_for_improvement</code>, <code>alert_type</code></div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Competitor Analysis section</h4>
+      <p>A dedicated section for calls where competitor names were mentioned. Currently no data but the structure exists — month-wise and scenario-wise competitor mention tracking.</p>
+      <div class="where">→ Add competitor mention flag to escalation endpoint. Can start with empty state, wire when data exists.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GAP 5: QUALITY PERFORMANCE ENHANCEMENTS ═══ -->
+<div class="section-label">Gap 5 — Quality Performance Page Enhancements</div>
+<div class="card">
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>ACHT Categorization — Call Duration Bucketing</h4>
+      <p>Calls bucketed by duration: Average (1–5min), Long (5–10min). Each bucket shows: Audit Count | Score% | Fatal Count | Fatal%. Short calls and long calls perform very differently — this is a required analysis dimension we've completely missed.</p>
+      <div class="where">→ Need call duration column in <code>db_audit.call_quality_assessment</code> (confirm in schema). New computed field in all Inbound endpoints.</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge new">NEW</span>
+    <div class="gap-text">
+      <h4>Parameter Group Scores on main Quality page</h4>
+      <p>Looker shows 5 parameter group scores directly on the Quality Performance page: Opening%, Soft Skills%, Hold Procedure%, Resolution%, Closing%. These are the 5 parameter groups for Inbound (not individual parameters). Our spec shows parameter breakdown only on drilldown.</p>
+      <div class="where">→ Add parameter group scores to <code>POST /api/callmaster/pm/overview</code> response</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge enhance">ENHANCE</span>
+    <div class="gap-text">
+      <h4>Quality Bands — correct thresholds</h4>
+      <p>Looker uses: 98–100% = Excellent, 90–97% = Good, 85–89% = Average, Below 85% = Below Average. Our spec inherits the SQL view's Hit/Watch/Miss. These need to match Looker's actual bands for Inbound.</p>
+      <div class="where">→ Update quality_band logic in <code>v_call_master_inbound_kpi</code> view (or compute in service layer)</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge enhance">ENHANCE</span>
+    <div class="gap-text">
+      <h4>Configurable target line per process</h4>
+      <p>Inbound target = 95%. Outbound (Finnable) = 80%. Our spec mentions target lines but doesn't make them configurable per process. Should be stored in ProcessRegistry config.</p>
+      <div class="where">→ Add <code>qualityTarget</code> field to ProcessRegistry for each process</div>
+    </div>
+  </div>
+  <div class="gap-item">
+    <span class="gap-badge enhance">ENHANCE</span>
+    <div class="gap-text">
+      <h4>Top 5 Performer on Quality page (not just leaderboard page)</h4>
+      <p>Quality Performance page has a "Top 5 Performer" mini-table inline: Agent | Audit Count | CQ% | Fatal Count | Fatal%. Quick-access without navigating to leaderboard.</p>
+      <div class="where">→ Add <code>top_performers</code> array to PM overview endpoint response</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ALREADY COVERED ═══ -->
+<div class="section-label">Already Covered in Our Design</div>
+<div class="card">
+  <table>
+    <thead><tr><th>Looker Feature</th><th>Our Equivalent</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Summary page</td><td>Process Overview (PM) / Org Scorecard (CEO)</td><td><span class="tag tag-ok">Covered</span></td></tr>
+      <tr><td>Day-wise quality trend chart</td><td>Daily Trends page (PM)</td><td><span class="tag tag-ok">Covered</span></td></tr>
+      <tr><td>Target vs CQ score 7-day trend</td><td>Daily Trends — needs target line</td><td><span class="tag tag-upd">Needs target value</span></td></tr>
+      <tr><td>Analyst leaderboard</td><td>T&Q Analyst Leaderboard</td><td><span class="tag tag-ok">Covered</span></td></tr>
+      <tr><td>Search Lead (call explorer)</td><td>Call Explorer (PM)</td><td><span class="tag tag-ok">Covered</span></td></tr>
+      <tr><td>Raw Download</td><td>Export routes (CSV)</td><td><span class="tag tag-ok">Covered</span></td></tr>
+      <tr><td>TNI / coaching</td><td>TNI Heatmap + Coaching Queue (T&Q)</td><td><span class="tag tag-ok">Covered</span></td></tr>
+      <tr><td>Individual call detail</td><td>Evidence Viewer / call/:id</td><td><span class="tag tag-upd">Needs richer fields</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══ UPDATED PAGE INVENTORY ═══ -->
+<div class="section-label">Updated Page Inventory — What Changes</div>
+<div class="card">
+  <table>
+    <thead><tr><th>Persona</th><th>Page</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td>All</td><td>Every page</td><td>Add Fatal Count + Fatal% KPIs alongside quality score</td></tr>
+      <tr><td>All</td><td>Every quality score</td><td>Add "Without Fatal" variant of CQ score</td></tr>
+      <tr><td>T&Q Head</td><td>Quality Deep-Dive</td><td>Add ACHT duration bucketing + parameter group scores + scenario filter</td></tr>
+      <tr><td>T&Q Head</td><td>Fatal Analysis <span class="tag tag-new">NEW PAGE</span></td><td>Top 5 fatal contributors + day-wise fatal% chart + scenario × fatal heatmap + week × scenario fatal</td></tr>
+      <tr><td>T&Q Head</td><td>Detail Analysis <span class="tag tag-new">NEW PAGE</span></td><td>Scenario counts + agent×parameter scorecard + day-wise performance table + week-wise table</td></tr>
+      <tr><td>T&Q Head</td><td>Potential Escalation</td><td>Expand: 5 negative signal KPIs + social media threat + scam table + month-wise trend + competitor section</td></tr>
+      <tr><td>Process Manager</td><td>Process Overview</td><td>Add ACHT + parameter group scores + scenario breakdown + Fatal% KPI</td></tr>
+      <tr><td>Process Manager</td><td>Defect Analysis</td><td>Add scenario filter, fatal breakdown by scenario</td></tr>
+      <tr><td>CEO</td><td>Risk Exposure</td><td>Add 5 negative signal KPIs + social media/court threat count + month trend</td></tr>
+      <tr><td>Branch Manager</td><td>Branch Health</td><td>Add Fatal% per process</td></tr>
+      <tr><td>Analyst</td><td>My Score Overview</td><td>Add Fatal Count + my parameter group scores</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══ REPEAT ANALYSIS ═══ -->
+<div class="section-label">Still Need Screenshots</div>
+<div class="card" style="border-color:rgba(245,158,11,0.3)">
+  <div class="gap-item">
+    <span class="gap-badge enhance">PENDING</span>
+    <div class="gap-text">
+      <h4>Repeat Analysis page — not yet seen</h4>
+      <p>Exists in Looker sidebar but not in any screenshot. Likely tracks: same customer calling multiple times, or same defect repeating for same agent. Need screenshot to confirm what it contains before updating spec.</p>
+    </div>
+  </div>
+</div>

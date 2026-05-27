@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_1 = require("../middleware/auth");
+const rbac_1 = require("../middleware/rbac");
+const calibrationController_1 = require("../controllers/calibrationController");
+const router = (0, express_1.Router)();
+router.use(auth_1.jwtAuth, rbac_1.loadUserScope);
+router.post('/sessions', calibrationController_1.createSession);
+router.get('/sessions', calibrationController_1.listSessions);
+router.post('/sessions/:id/calls', calibrationController_1.addCallsToSession);
+router.get('/sessions/:id/report', calibrationController_1.getSessionReport);
+router.put('/sessions/:id/close', calibrationController_1.closeSession);
+exports.default = router;
