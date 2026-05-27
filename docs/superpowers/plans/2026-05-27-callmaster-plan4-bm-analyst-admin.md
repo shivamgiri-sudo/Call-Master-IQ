@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement Branch Manager (6 pages), Analyst (6 pages), and Admin (6 pages) personas, plus CSV export routes for all personas.
+**Goal:** Implement Branch Manager (6 pages), Analyst (6 pages), and Admin (12 pages) personas, plus CSV export routes for all personas.
 
-**Architecture:** `branchService.ts`, `analystService.ts`, and `adminService.ts` are added. Branch Manager reuses unified KPI view filtered to `branch_ids`. Analyst is scoped to own `employee_code` only — no peer data exposed. Admin manages `cm_users` CRUD and exposes system health. Export routes stream CSV from the same service functions.
+**Architecture:** `branchService.ts`, `analystService.ts`, and `adminService.ts` are added. Branch Manager reuses unified KPI view filtered to `branch_ids`. Analyst is scoped to own `employee_code` only — no peer data exposed. Admin is the master control panel: full CRUD for users, employees, agent aliases, processes, exclusion rules, coaching, calibration, and audit config — all writing directly to the Shivamgiri DB. Export routes stream CSV.
 
 **Tech Stack:** TypeScript/Express 5, mysql2, bcryptjs, vanilla JS, ApexCharts. Prereq: Plans 1–3 complete.
 
@@ -17,10 +17,11 @@
 src/callmaster/
   services/branchService.ts       ← BM queries scoped to branch_ids
   services/analystService.ts      ← Analyst queries scoped to own employee_code
-  services/adminService.ts        ← cm_users CRUD + system health
+  services/adminService.ts        ← ALL admin writes: users, employees, aliases, processes,
+                                     exclusions, coaching, calibration, audit config, system health
   routes/bmRoutes.ts              ← POST /api/callmaster/bm/*
   routes/analystRoutes.ts         ← POST /api/callmaster/analyst/*
-  routes/adminRoutes.ts           ← GET/POST/PUT/DELETE /api/callmaster/admin/*
+  routes/adminRoutes.ts           ← 30+ GET/POST/PUT/DELETE /api/callmaster/admin/* endpoints
   routes/exportRoutes.ts          ← GET /api/callmaster/export/* (CSV)
 ```
 
@@ -362,7 +363,6 @@ git commit -m "feat(callmaster): add analyst service (my overview, defects, call
 // src/callmaster/services/adminService.ts
 import db from '../../config/db';
 import bcrypt from 'bcryptjs';
-import { getPool as getMainPool } from '../../config/db';
 import { getExternalPool } from '../../config/dbExternal';
 
 async function q<T = any>(sql: string, params: any[]): Promise<T[]> {
@@ -370,11 +370,21 @@ async function q<T = any>(sql: string, params: any[]): Promise<T[]> {
   return rows;
 }
 
+// ─── CATEGORY 1: USERS ────────────────────────────────────────────────────────
+
 export async function listUsers() {
   return q(`
     SELECT user_id, username, full_name, role, branch_ids, process_ids, employee_code, active, created_at
     FROM cm_users ORDER BY created_at DESC
   `, []);
+}
+
+export async function getUserById(userId: number) {
+  const rows = await q<any>(`
+    SELECT user_id, username, full_name, role, branch_ids, process_ids, employee_code, active, created_at
+    FROM cm_users WHERE user_id = ?
+  `, [userId]);
+  return rows[0] ?? null;
 }
 
 export async function createUser(data: {
@@ -393,20 +403,20 @@ export async function createUser(data: {
 }
 
 export async function updateUser(userId: number, data: Partial<{
-  full_name: string; role: string; branch_ids: string[]; process_ids: string[]; employee_code: string; active: number;
+  full_name: string; role: string; branch_ids: string[]; process_ids: string[];
+  employee_code: string; active: number;
 }>) {
   const fields: string[] = [];
   const params: any[] = [];
 
-  if (data.full_name     !== undefined) { fields.push('full_name = ?');   params.push(data.full_name); }
-  if (data.role          !== undefined) { fields.push('role = ?');         params.push(data.role); }
-  if (data.branch_ids    !== undefined) { fields.push('branch_ids = ?');   params.push(JSON.stringify(data.branch_ids)); }
-  if (data.process_ids   !== undefined) { fields.push('process_ids = ?');  params.push(JSON.stringify(data.process_ids)); }
-  if (data.employee_code !== undefined) { fields.push('employee_code = ?');params.push(data.employee_code); }
-  if (data.active        !== undefined) { fields.push('active = ?');       params.push(data.active); }
+  if (data.full_name     !== undefined) { fields.push('full_name = ?');    params.push(data.full_name); }
+  if (data.role          !== undefined) { fields.push('role = ?');          params.push(data.role); }
+  if (data.branch_ids    !== undefined) { fields.push('branch_ids = ?');    params.push(JSON.stringify(data.branch_ids)); }
+  if (data.process_ids   !== undefined) { fields.push('process_ids = ?');   params.push(JSON.stringify(data.process_ids)); }
+  if (data.employee_code !== undefined) { fields.push('employee_code = ?'); params.push(data.employee_code); }
+  if (data.active        !== undefined) { fields.push('active = ?');        params.push(data.active); }
 
   if (fields.length === 0) return;
-
   params.push(userId);
   await (db as any).execute(`UPDATE cm_users SET ${fields.join(', ')} WHERE user_id = ?`, params);
 }
@@ -415,20 +425,457 @@ export async function deactivateUser(userId: number) {
   await (db as any).execute(`UPDATE cm_users SET active = 0 WHERE user_id = ?`, [userId]);
 }
 
+export async function deleteUser(userId: number) {
+  await (db as any).execute(`DELETE FROM cm_users WHERE user_id = ?`, [userId]);
+}
+
+export async function resetUserPassword(userId: number, newPassword: string) {
+  const hash = await bcrypt.hash(newPassword, 10);
+  await (db as any).execute(`UPDATE cm_users SET password_hash = ? WHERE user_id = ?`, [hash, userId]);
+}
+
+// ─── CATEGORY 2: EMPLOYEES ────────────────────────────────────────────────────
+
+export async function listEmployees(filters: { branch?: string; process?: string; active?: number } = {}) {
+  const clauses: string[] = [];
+  const params: any[] = [];
+
+  if (filters.branch)  { clauses.push('branch = ?');         params.push(filters.branch); }
+  if (filters.process) { clauses.push('process_name = ?');   params.push(filters.process); }
+  if (filters.active !== undefined) { clauses.push('active_status = ?'); params.push(filters.active); }
+
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  return q(`
+    SELECT emp_id, employee_code, employee_name, process_name, branch, designation,
+           team_leader_code, active_status, created_at
+    FROM employee_mapping_master ${where} ORDER BY employee_name
+  `, params);
+}
+
+export async function createEmployee(data: {
+  employee_code: string; employee_name: string; process_name: string; branch: string;
+  designation?: string; team_leader_code?: string;
+}) {
+  const [result] = await (db as any).execute(
+    `INSERT INTO employee_mapping_master
+       (employee_code, employee_name, process_name, branch, designation, team_leader_code, active_status)
+     VALUES (?, ?, ?, ?, ?, ?, 1)`,
+    [data.employee_code, data.employee_name, data.process_name, data.branch,
+     data.designation || null, data.team_leader_code || null]
+  );
+  return { emp_id: (result as any).insertId };
+}
+
+export async function updateEmployee(empId: number, data: Partial<{
+  employee_name: string; process_name: string; branch: string;
+  designation: string; team_leader_code: string; active_status: number;
+}>) {
+  const fields: string[] = [];
+  const params: any[] = [];
+
+  if (data.employee_name  !== undefined) { fields.push('employee_name = ?');   params.push(data.employee_name); }
+  if (data.process_name   !== undefined) { fields.push('process_name = ?');    params.push(data.process_name); }
+  if (data.branch         !== undefined) { fields.push('branch = ?');          params.push(data.branch); }
+  if (data.designation    !== undefined) { fields.push('designation = ?');     params.push(data.designation); }
+  if (data.team_leader_code !== undefined) { fields.push('team_leader_code = ?'); params.push(data.team_leader_code); }
+  if (data.active_status  !== undefined) { fields.push('active_status = ?');   params.push(data.active_status); }
+
+  if (fields.length === 0) return;
+  params.push(empId);
+  await (db as any).execute(`UPDATE employee_mapping_master SET ${fields.join(', ')} WHERE emp_id = ?`, params);
+}
+
+export async function deleteEmployee(empId: number) {
+  await (db as any).execute(`DELETE FROM employee_mapping_master WHERE emp_id = ?`, [empId]);
+}
+
+export async function bulkImportEmployees(rows: Array<{
+  employee_code: string; employee_name: string; process_name: string;
+  branch: string; designation?: string; team_leader_code?: string;
+}>) {
+  if (rows.length === 0) return { inserted: 0 };
+  const values = rows.map(() => '(?, ?, ?, ?, ?, ?, 1)').join(', ');
+  const params = rows.flatMap(r => [
+    r.employee_code, r.employee_name, r.process_name, r.branch,
+    r.designation || null, r.team_leader_code || null,
+  ]);
+  await (db as any).execute(
+    `INSERT IGNORE INTO employee_mapping_master
+       (employee_code, employee_name, process_name, branch, designation, team_leader_code, active_status)
+     VALUES ${values}`,
+    params
+  );
+  return { inserted: rows.length };
+}
+
+// ─── CATEGORY 3: AGENT ALIASES ────────────────────────────────────────────────
+
+export async function listAliases(processName?: string) {
+  const where = processName ? `WHERE a.process_name = ?` : '';
+  const params = processName ? [processName] : [];
+  return q(`
+    SELECT a.alias_id, a.source_alias, a.employee_code, a.process_name,
+           e.employee_name, a.created_at
+    FROM employee_source_alias a
+    LEFT JOIN employee_mapping_master e ON e.employee_code = a.employee_code
+    ${where}
+    ORDER BY a.process_name, a.source_alias
+  `, params);
+}
+
+export async function createAlias(data: {
+  source_alias: string; employee_code: string; process_name: string;
+}) {
+  const [result] = await (db as any).execute(
+    `INSERT INTO employee_source_alias (source_alias, employee_code, process_name)
+     VALUES (?, ?, ?)`,
+    [data.source_alias, data.employee_code, data.process_name]
+  );
+  return { alias_id: (result as any).insertId };
+}
+
+export async function updateAlias(aliasId: number, data: {
+  employee_code: string; process_name: string;
+}) {
+  await (db as any).execute(
+    `UPDATE employee_source_alias SET employee_code = ?, process_name = ? WHERE alias_id = ?`,
+    [data.employee_code, data.process_name, aliasId]
+  );
+}
+
+export async function deleteAlias(aliasId: number) {
+  await (db as any).execute(`DELETE FROM employee_source_alias WHERE alias_id = ?`, [aliasId]);
+}
+
+export async function bulkImportAliases(rows: Array<{
+  source_alias: string; employee_code: string; process_name: string;
+}>) {
+  if (rows.length === 0) return { inserted: 0 };
+  const values = rows.map(() => '(?, ?, ?)').join(', ');
+  const params = rows.flatMap(r => [r.source_alias, r.employee_code, r.process_name]);
+  await (db as any).execute(
+    `INSERT IGNORE INTO employee_source_alias (source_alias, employee_code, process_name) VALUES ${values}`,
+    params
+  );
+  return { inserted: rows.length };
+}
+
+// ─── CATEGORY 4: PROCESSES ────────────────────────────────────────────────────
+
 export async function listProcesses() {
   return q(`
-    SELECT process_id, process_name, business_lob, branch, source_type, dialdesk_client_id, active_status
+    SELECT process_id, process_name, business_lob, branch, source_type,
+           dialdesk_client_id, target_cq_pct, active_status
     FROM process_mapping_master
     ORDER BY source_type, process_name
   `, []);
 }
 
+export async function createProcess(data: {
+  process_name: string; business_lob: string; branch: string;
+  source_type: 'Inbound' | 'Outbound'; dialdesk_client_id?: string; target_cq_pct?: number;
+}) {
+  const [result] = await (db as any).execute(
+    `INSERT INTO process_mapping_master
+       (process_name, business_lob, branch, source_type, dialdesk_client_id, target_cq_pct, active_status)
+     VALUES (?, ?, ?, ?, ?, ?, 1)`,
+    [data.process_name, data.business_lob, data.branch, data.source_type,
+     data.dialdesk_client_id || null,
+     data.target_cq_pct ?? (data.source_type === 'Inbound' ? 95 : 80)]
+  );
+  return { process_id: (result as any).insertId };
+}
+
+export async function updateProcess(processId: number, data: Partial<{
+  process_name: string; business_lob: string; branch: string;
+  source_type: string; dialdesk_client_id: string; target_cq_pct: number; active_status: number;
+}>) {
+  const fields: string[] = [];
+  const params: any[] = [];
+
+  if (data.process_name      !== undefined) { fields.push('process_name = ?');      params.push(data.process_name); }
+  if (data.business_lob      !== undefined) { fields.push('business_lob = ?');      params.push(data.business_lob); }
+  if (data.branch            !== undefined) { fields.push('branch = ?');             params.push(data.branch); }
+  if (data.source_type       !== undefined) { fields.push('source_type = ?');       params.push(data.source_type); }
+  if (data.dialdesk_client_id !== undefined) { fields.push('dialdesk_client_id = ?'); params.push(data.dialdesk_client_id); }
+  if (data.target_cq_pct     !== undefined) { fields.push('target_cq_pct = ?');     params.push(data.target_cq_pct); }
+  if (data.active_status     !== undefined) { fields.push('active_status = ?');     params.push(data.active_status); }
+
+  if (fields.length === 0) return;
+  params.push(processId);
+  await (db as any).execute(`UPDATE process_mapping_master SET ${fields.join(', ')} WHERE process_id = ?`, params);
+}
+
+export async function deleteProcess(processId: number) {
+  await (db as any).execute(`DELETE FROM process_mapping_master WHERE process_id = ?`, [processId]);
+}
+
+// ─── CATEGORY 5: EXCLUSION RULES ─────────────────────────────────────────────
+
+export async function listExclusionRules() {
+  return q(`
+    SELECT rule_id, process_name, source_type, field_name, operator,
+           field_value, reason, created_by, created_at
+    FROM dashboard_exclusion_rules
+    ORDER BY process_name, field_name
+  `, []);
+}
+
+export async function createExclusionRule(data: {
+  process_name: string; source_type: string; field_name: string;
+  operator: string; field_value: string; reason?: string; created_by: string;
+}) {
+  const [result] = await (db as any).execute(
+    `INSERT INTO dashboard_exclusion_rules
+       (process_name, source_type, field_name, operator, field_value, reason, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [data.process_name, data.source_type, data.field_name, data.operator,
+     data.field_value, data.reason || null, data.created_by]
+  );
+  return { rule_id: (result as any).insertId };
+}
+
+export async function updateExclusionRule(ruleId: number, data: Partial<{
+  field_name: string; operator: string; field_value: string; reason: string;
+}>) {
+  const fields: string[] = [];
+  const params: any[] = [];
+
+  if (data.field_name  !== undefined) { fields.push('field_name = ?');  params.push(data.field_name); }
+  if (data.operator    !== undefined) { fields.push('operator = ?');    params.push(data.operator); }
+  if (data.field_value !== undefined) { fields.push('field_value = ?'); params.push(data.field_value); }
+  if (data.reason      !== undefined) { fields.push('reason = ?');      params.push(data.reason); }
+
+  if (fields.length === 0) return;
+  params.push(ruleId);
+  await (db as any).execute(`UPDATE dashboard_exclusion_rules SET ${fields.join(', ')} WHERE rule_id = ?`, params);
+}
+
+export async function deleteExclusionRule(ruleId: number) {
+  await (db as any).execute(`DELETE FROM dashboard_exclusion_rules WHERE rule_id = ?`, [ruleId]);
+}
+
+// ─── CATEGORY 6: COACHING QUEUE ───────────────────────────────────────────────
+
+export async function listCoachingQueue(filters: {
+  status?: string; process?: string; priority?: string; page?: number; limit?: number;
+} = {}) {
+  const clauses: string[] = [];
+  const params: any[] = [];
+
+  if (filters.status)  { clauses.push('status = ?');       params.push(filters.status); }
+  if (filters.process) { clauses.push('process_name = ?'); params.push(filters.process); }
+  if (filters.priority){ clauses.push('priority = ?');     params.push(filters.priority); }
+
+  const where  = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  const page   = Math.max(1, filters.page || 1);
+  const limit  = Math.min(100, filters.limit || 50);
+  const offset = (page - 1) * limit;
+
+  const [[{ total }]] = await (db as any).execute<any[]>(
+    `SELECT COUNT(*) AS total FROM call_coaching_queue ${where}`, params
+  );
+  const rows = await q(`
+    SELECT coaching_id AS id, agent_employee_code, agent_employee_name, process_name,
+           coaching_title AS title, coaching_reason AS reason, priority, status,
+           assigned_to, due_date, created_at, updated_at
+    FROM call_coaching_queue ${where}
+    ORDER BY FIELD(priority,'High','Medium','Low'), due_date ASC
+    LIMIT ? OFFSET ?
+  `, [...params, limit, offset]);
+
+  return { total: Number(total), rows };
+}
+
+export async function createCoachingEntry(data: {
+  agent_employee_code: string; agent_employee_name: string; process_name: string;
+  source_call_id?: string; coaching_title: string; coaching_reason: string;
+  priority: string; assigned_to?: string; due_date?: string;
+}) {
+  const [result] = await (db as any).execute(
+    `INSERT INTO call_coaching_queue
+       (agent_employee_code, agent_employee_name, process_name, source_call_id,
+        coaching_title, coaching_reason, priority, assigned_to, due_date, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Open')`,
+    [data.agent_employee_code, data.agent_employee_name, data.process_name,
+     data.source_call_id || null, data.coaching_title, data.coaching_reason,
+     data.priority, data.assigned_to || null, data.due_date || null]
+  );
+  return { coaching_id: (result as any).insertId };
+}
+
+export async function updateCoachingEntry(coachingId: number, data: Partial<{
+  coaching_title: string; coaching_reason: string; priority: string;
+  assigned_to: string; due_date: string; status: string;
+}>) {
+  const fields: string[] = [];
+  const params: any[] = [];
+
+  if (data.coaching_title  !== undefined) { fields.push('coaching_title = ?');  params.push(data.coaching_title); }
+  if (data.coaching_reason !== undefined) { fields.push('coaching_reason = ?'); params.push(data.coaching_reason); }
+  if (data.priority        !== undefined) { fields.push('priority = ?');        params.push(data.priority); }
+  if (data.assigned_to     !== undefined) { fields.push('assigned_to = ?');     params.push(data.assigned_to); }
+  if (data.due_date        !== undefined) { fields.push('due_date = ?');        params.push(data.due_date); }
+  if (data.status          !== undefined) { fields.push('status = ?');          params.push(data.status); }
+
+  if (fields.length === 0) return;
+  params.push(coachingId);
+  await (db as any).execute(`UPDATE call_coaching_queue SET ${fields.join(', ')} WHERE coaching_id = ?`, params);
+}
+
+export async function bulkCloseCoaching(coachingIds: number[]) {
+  if (coachingIds.length === 0) return { updated: 0 };
+  const placeholders = coachingIds.map(() => '?').join(', ');
+  await (db as any).execute(
+    `UPDATE call_coaching_queue SET status = 'Closed' WHERE coaching_id IN (${placeholders})`,
+    coachingIds
+  );
+  return { updated: coachingIds.length };
+}
+
+// ─── CATEGORY 7: CALIBRATION ──────────────────────────────────────────────────
+
+export async function listCalibrationSessions(filters: {
+  process?: string; status?: string; page?: number;
+} = {}) {
+  const clauses: string[] = [];
+  const params: any[] = [];
+
+  if (filters.process) { clauses.push('process_name = ?');    params.push(filters.process); }
+  if (filters.status)  { clauses.push('session_status = ?');  params.push(filters.status); }
+
+  const where  = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  const page   = Math.max(1, filters.page || 1);
+  const offset = (page - 1) * 20;
+
+  const [[{ total }]] = await (db as any).execute<any[]>(
+    `SELECT COUNT(*) AS total FROM calibration_session ${where}`, params
+  );
+  const rows = await q(`
+    SELECT session_id, process_name, session_date, facilitator_name,
+           session_status, participant_count, notes, created_at
+    FROM calibration_session ${where}
+    ORDER BY session_date DESC
+    LIMIT 20 OFFSET ?
+  `, [...params, offset]);
+
+  return { total: Number(total), rows };
+}
+
+export async function createCalibrationSession(data: {
+  process_name: string; session_date: string; facilitator_name: string; notes?: string;
+}) {
+  const [result] = await (db as any).execute(
+    `INSERT INTO calibration_session (process_name, session_date, facilitator_name, notes, session_status)
+     VALUES (?, ?, ?, ?, 'Scheduled')`,
+    [data.process_name, data.session_date, data.facilitator_name, data.notes || null]
+  );
+  return { session_id: (result as any).insertId };
+}
+
+export async function updateCalibrationSession(sessionId: number, data: Partial<{
+  session_date: string; facilitator_name: string; session_status: string;
+  participant_count: number; notes: string;
+}>) {
+  const fields: string[] = [];
+  const params: any[] = [];
+
+  if (data.session_date      !== undefined) { fields.push('session_date = ?');      params.push(data.session_date); }
+  if (data.facilitator_name  !== undefined) { fields.push('facilitator_name = ?');  params.push(data.facilitator_name); }
+  if (data.session_status    !== undefined) { fields.push('session_status = ?');    params.push(data.session_status); }
+  if (data.participant_count !== undefined) { fields.push('participant_count = ?'); params.push(data.participant_count); }
+  if (data.notes             !== undefined) { fields.push('notes = ?');             params.push(data.notes); }
+
+  if (fields.length === 0) return;
+  params.push(sessionId);
+  await (db as any).execute(`UPDATE calibration_session SET ${fields.join(', ')} WHERE session_id = ?`, params);
+}
+
+export async function listCalibrationCalls(sessionId: number) {
+  return q(`
+    SELECT cc.cal_call_id, cc.source_call_id, cc.agent_employee_code,
+           cc.facilitator_score, cc.agreed_score, cc.variance, cc.call_notes,
+           e.employee_name
+    FROM calibration_call cc
+    LEFT JOIN employee_mapping_master e ON e.employee_code = cc.agent_employee_code
+    WHERE cc.session_id = ?
+    ORDER BY cc.variance DESC
+  `, [sessionId]);
+}
+
+export async function addCalibrationCall(data: {
+  session_id: number; source_call_id: string; agent_employee_code: string;
+  facilitator_score: number; agreed_score?: number; call_notes?: string;
+}) {
+  const variance = data.agreed_score !== undefined
+    ? Math.abs(data.facilitator_score - data.agreed_score)
+    : null;
+
+  const [result] = await (db as any).execute(
+    `INSERT INTO calibration_call
+       (session_id, source_call_id, agent_employee_code, facilitator_score, agreed_score, variance, call_notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [data.session_id, data.source_call_id, data.agent_employee_code,
+     data.facilitator_score, data.agreed_score ?? null, variance, data.call_notes || null]
+  );
+  return { cal_call_id: (result as any).insertId };
+}
+
+// ─── CATEGORY 8: AUDIT PROMPT CONFIG ─────────────────────────────────────────
+
+export async function listAuditPrompts(processName?: string) {
+  const where = processName ? `WHERE process_name = ?` : '';
+  const params = processName ? [processName] : [];
+  return q(`
+    SELECT prompt_id, process_name, source_type, parameter_name,
+           max_marks, prompt_text, active
+    FROM audit_prompt_config ${where}
+    ORDER BY process_name, parameter_name
+  `, params);
+}
+
+export async function createAuditPrompt(data: {
+  process_name: string; source_type: string; parameter_name: string;
+  max_marks: number; prompt_text: string;
+}) {
+  const [result] = await (db as any).execute(
+    `INSERT INTO audit_prompt_config
+       (process_name, source_type, parameter_name, max_marks, prompt_text, active)
+     VALUES (?, ?, ?, ?, ?, 1)`,
+    [data.process_name, data.source_type, data.parameter_name, data.max_marks, data.prompt_text]
+  );
+  return { prompt_id: (result as any).insertId };
+}
+
+export async function updateAuditPrompt(promptId: number, data: Partial<{
+  parameter_name: string; max_marks: number; prompt_text: string; active: number;
+}>) {
+  const fields: string[] = [];
+  const params: any[] = [];
+
+  if (data.parameter_name !== undefined) { fields.push('parameter_name = ?'); params.push(data.parameter_name); }
+  if (data.max_marks      !== undefined) { fields.push('max_marks = ?');      params.push(data.max_marks); }
+  if (data.prompt_text    !== undefined) { fields.push('prompt_text = ?');    params.push(data.prompt_text); }
+  if (data.active         !== undefined) { fields.push('active = ?');         params.push(data.active); }
+
+  if (fields.length === 0) return;
+  params.push(promptId);
+  await (db as any).execute(`UPDATE audit_prompt_config SET ${fields.join(', ')} WHERE prompt_id = ?`, params);
+}
+
+export async function deleteAuditPrompt(promptId: number) {
+  await (db as any).execute(`DELETE FROM audit_prompt_config WHERE prompt_id = ?`, [promptId]);
+}
+
+// ─── SYSTEM HEALTH ────────────────────────────────────────────────────────────
+
 export async function systemHealth() {
   const results: Record<string, any> = {};
 
   try {
-    const [[mainRow]] = await (db as any).execute<any[]>('SELECT 1 AS ok');
-    results.shivamgiri = { status: 'ok', latency_ms: null };
+    const start = Date.now();
+    await (db as any).execute('SELECT 1');
+    results.shivamgiri = { status: 'ok', latency_ms: Date.now() - start };
   } catch (e: any) {
     results.shivamgiri = { status: 'error', error: e.message };
   }
@@ -442,10 +889,24 @@ export async function systemHealth() {
   }
 
   try {
-    const [cmUsers] = await (db as any).execute<any[]>('SELECT COUNT(*) AS cnt FROM cm_users');
-    results.cm_users_count = (cmUsers as any)[0]?.cnt ?? 0;
+    const [[row]] = await (db as any).execute<any[]>('SELECT COUNT(*) AS cnt FROM cm_users');
+    results.cm_users_count = Number((row as any).cnt ?? 0);
   } catch {
     results.cm_users_count = null;
+  }
+
+  try {
+    const [[row]] = await (db as any).execute<any[]>('SELECT COUNT(*) AS cnt FROM process_mapping_master WHERE active_status = 1');
+    results.active_processes = Number((row as any).cnt ?? 0);
+  } catch {
+    results.active_processes = null;
+  }
+
+  try {
+    const [[row]] = await (db as any).execute<any[]>('SELECT COUNT(*) AS cnt FROM call_coaching_queue WHERE status = \'Open\'');
+    results.open_coaching_items = Number((row as any).cnt ?? 0);
+  } catch {
+    results.open_coaching_items = null;
   }
 
   return { pools: results, checked_at: new Date().toISOString() };
@@ -463,7 +924,7 @@ Expected: no errors.
 
 ```bash
 git add src/callmaster/services/adminService.ts
-git commit -m "feat(callmaster): add admin service (user CRUD, process list, system health)"
+git commit -m "feat(callmaster): add admin service (full CRUD — users, employees, aliases, processes, exclusions, coaching, calibration, audit-config, system health)"
 ```
 
 ---
@@ -581,13 +1042,64 @@ const wrap = (fn: Function) => async (req: Request, res: Response): Promise<void
   catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 };
 
-router.get('/users',       wrap(() => admin.listUsers()));
-router.post('/users',      wrap(req => admin.createUser(req.body)));
-router.put('/users/:id',   wrap(req => admin.updateUser(Number(req.params.id), req.body)));
-router.delete('/users/:id',wrap(req => admin.deactivateUser(Number(req.params.id))));
-router.get('/processes',   wrap(() => admin.listProcesses()));
-router.get('/system-health', wrap(() => admin.systemHealth()));
+// ── Users ───────────────────────────────────────────────────────────────────
+router.get('/users',                wrap(() => admin.listUsers()));
+router.get('/users/:id',            wrap(req => admin.getUserById(Number(req.params.id))));
+router.post('/users',               wrap(req => admin.createUser(req.body)));
+router.put('/users/:id',            wrap(req => admin.updateUser(Number(req.params.id), req.body)));
+router.patch('/users/:id/deactivate', wrap(req => admin.deactivateUser(Number(req.params.id))));
+router.delete('/users/:id',         wrap(req => admin.deleteUser(Number(req.params.id))));
+router.post('/users/:id/reset-password', wrap(req => admin.resetUserPassword(Number(req.params.id), req.body.new_password)));
 
+// ── Employees ────────────────────────────────────────────────────────────────
+router.get('/employees',            wrap(req => admin.listEmployees(req.query as any)));
+router.post('/employees',           wrap(req => admin.createEmployee(req.body)));
+router.put('/employees/:id',        wrap(req => admin.updateEmployee(Number(req.params.id), req.body)));
+router.delete('/employees/:id',     wrap(req => admin.deleteEmployee(Number(req.params.id))));
+router.post('/employees/bulk-import', wrap(req => admin.bulkImportEmployees(req.body.rows)));
+
+// ── Agent Aliases ─────────────────────────────────────────────────────────────
+router.get('/aliases',              wrap(req => admin.listAliases(req.query.process_name as string)));
+router.post('/aliases',             wrap(req => admin.createAlias(req.body)));
+router.put('/aliases/:id',          wrap(req => admin.updateAlias(Number(req.params.id), req.body)));
+router.delete('/aliases/:id',       wrap(req => admin.deleteAlias(Number(req.params.id))));
+router.post('/aliases/bulk-import', wrap(req => admin.bulkImportAliases(req.body.rows)));
+
+// ── Processes ─────────────────────────────────────────────────────────────────
+router.get('/processes',            wrap(() => admin.listProcesses()));
+router.post('/processes',           wrap(req => admin.createProcess(req.body)));
+router.put('/processes/:id',        wrap(req => admin.updateProcess(Number(req.params.id), req.body)));
+router.delete('/processes/:id',     wrap(req => admin.deleteProcess(Number(req.params.id))));
+
+// ── Exclusion Rules ───────────────────────────────────────────────────────────
+router.get('/exclusions',           wrap(() => admin.listExclusionRules()));
+router.post('/exclusions',          wrap(req => admin.createExclusionRule({ ...req.body, created_by: req.cm!.username })));
+router.put('/exclusions/:id',       wrap(req => admin.updateExclusionRule(Number(req.params.id), req.body)));
+router.delete('/exclusions/:id',    wrap(req => admin.deleteExclusionRule(Number(req.params.id))));
+
+// ── Coaching ──────────────────────────────────────────────────────────────────
+router.get('/coaching',             wrap(req => admin.listCoachingQueue(req.query as any)));
+router.post('/coaching',            wrap(req => admin.createCoachingEntry(req.body)));
+router.put('/coaching/:id',         wrap(req => admin.updateCoachingEntry(Number(req.params.id), req.body)));
+router.post('/coaching/bulk-close', wrap(req => admin.bulkCloseCoaching(req.body.ids)));
+
+// ── Calibration ───────────────────────────────────────────────────────────────
+router.get('/calibration/sessions',       wrap(req => admin.listCalibrationSessions(req.query as any)));
+router.post('/calibration/sessions',      wrap(req => admin.createCalibrationSession(req.body)));
+router.put('/calibration/sessions/:id',   wrap(req => admin.updateCalibrationSession(Number(req.params.id), req.body)));
+router.get('/calibration/sessions/:id/calls', wrap(req => admin.listCalibrationCalls(Number(req.params.id))));
+router.post('/calibration/calls',         wrap(req => admin.addCalibrationCall(req.body)));
+
+// ── Audit Prompt Config ───────────────────────────────────────────────────────
+router.get('/audit-prompts',        wrap(req => admin.listAuditPrompts(req.query.process_name as string)));
+router.post('/audit-prompts',       wrap(req => admin.createAuditPrompt(req.body)));
+router.put('/audit-prompts/:id',    wrap(req => admin.updateAuditPrompt(Number(req.params.id), req.body)));
+router.delete('/audit-prompts/:id', wrap(req => admin.deleteAuditPrompt(Number(req.params.id))));
+
+// ── System Health ─────────────────────────────────────────────────────────────
+router.get('/system-health',        wrap(() => admin.systemHealth()));
+
+// ── Impersonate ───────────────────────────────────────────────────────────────
 router.post('/impersonate', async (req: Request, res: Response): Promise<void> => {
   try {
     const { target_user_id } = req.body;
@@ -639,7 +1151,7 @@ Expected: no errors.
 
 ```bash
 git add src/callmaster/routes/bmRoutes.ts src/callmaster/routes/analystRoutes.ts src/callmaster/routes/adminRoutes.ts src/server.ts
-git commit -m "feat(callmaster): add BM, Analyst, Admin routes (18 endpoints total) + mount in server.ts"
+git commit -m "feat(callmaster): add BM, Analyst, Admin routes (45+ endpoints) + mount in server.ts"
 ```
 
 ---
@@ -1079,81 +1591,707 @@ git commit -m "feat(callmaster): implement Analyst frontend pages (6 pages, scop
 
 const ADMIN_PAGES = {
 
+  // ── PAGE 1: User Management ─────────────────────────────────────────────────
   'admin-users': async function(preset) {
     const r = await CALLMASTER_API.get('/api/callmaster/admin/users');
     const users = r.data || [];
     return `
       ${pageHeader('User Management', `${users.length} users`)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
+      </div>
       ${table(
         [
           { key: 'user_id',    label: 'ID',      render: v => `<span class="td-mono">${v}</span>` },
-          { key: 'username',   label: 'Username' },
+          { key: 'username',   label: 'Username', render: v => `<span class="td-mono">${v}</span>` },
           { key: 'full_name',  label: 'Full Name' },
-          { key: 'role',       label: 'Role',    render: v => `<span class="persona-badge badge-${v}">${v.replace('_',' ')}</span>` },
-          { key: 'active',     label: 'Active',  render: v => v ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-gray">Inactive</span>' },
-          { key: 'created_at', label: 'Created', render: v => v ? new Date(v).toLocaleDateString() : '—' },
+          { key: 'role',       label: 'Role', render: v => `<span class="badge badge-blue">${v.replace(/_/g,' ')}</span>` },
+          { key: 'employee_code', label: 'Emp Code', render: v => v ? `<span class="td-mono">${v}</span>` : '—' },
+          { key: 'active',     label: 'Status', render: v => v ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-gray">Inactive</span>' },
+          { key: 'user_id',    label: 'Actions', render: (v, row) => `
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-sm" onclick="resetPassword(${v})">Reset PW</button>
+              ${row.active ? `<button class="btn btn-sm btn-danger" onclick="deactivateUser(${v})">Deactivate</button>` : `<button class="btn btn-sm" onclick="activateUser(${v})">Activate</button>`}
+              <button class="btn btn-sm btn-danger" onclick="deleteUser(${v})">Delete</button>
+            </div>` },
         ],
         users,
         { emptyMsg: 'No users found' }
-      )}`;
+      )}
+      <div id="addUserModal" class="modal-overlay" style="display:none">
+        <div class="modal-box">
+          <div class="modal-title">Add User</div>
+          <div class="form-group"><label class="form-label">Username</label><input class="filter-input" id="nuUsername" placeholder="e.g. john.doe"></div>
+          <div class="form-group"><label class="form-label">Full Name</label><input class="filter-input" id="nuFullName"></div>
+          <div class="form-group"><label class="form-label">Password</label><input class="filter-input" id="nuPassword" type="password"></div>
+          <div class="form-group"><label class="form-label">Role</label>
+            <select class="filter-select" id="nuRole">
+              <option value="analyst">Analyst</option>
+              <option value="process_manager">Process Manager</option>
+              <option value="branch_manager">Branch Manager</option>
+              <option value="tq_head">T&Q Head</option>
+              <option value="ceo">CEO</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Employee Code (optional)</label><input class="filter-input" id="nuEmpCode"></div>
+          <div class="form-group"><label class="form-label">Branch IDs (comma-separated, * for all)</label><input class="filter-input" id="nuBranchIds" value="*"></div>
+          <div class="form-group"><label class="form-label">Process IDs (comma-separated, * for all)</label><input class="filter-input" id="nuProcessIds" value="*"></div>
+          <div id="nuError" style="color:var(--danger);font-size:13px"></div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-primary" onclick="submitAddUser()">Create</button>
+            <button class="btn" onclick="document.getElementById('addUserModal').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <script>
+        function showAddUserModal() { document.getElementById('addUserModal').style.display='flex'; }
+        async function submitAddUser() {
+          const nuError = document.getElementById('nuError');
+          nuError.textContent = '';
+          const body = {
+            username: document.getElementById('nuUsername').value.trim(),
+            full_name: document.getElementById('nuFullName').value.trim(),
+            password: document.getElementById('nuPassword').value,
+            role: document.getElementById('nuRole').value,
+            employee_code: document.getElementById('nuEmpCode').value.trim() || undefined,
+            branch_ids: document.getElementById('nuBranchIds').value.split(',').map(s=>s.trim()),
+            process_ids: document.getElementById('nuProcessIds').value.split(',').map(s=>s.trim()),
+          };
+          if (!body.username || !body.password || !body.full_name) { nuError.textContent = 'Username, full name and password are required'; return; }
+          const r = await CALLMASTER_API.post('/api/callmaster/admin/users', body);
+          if (r.success) { document.getElementById('addUserModal').style.display='none'; toast('User created · ID ' + r.data.user_id, 'success'); go('admin-users'); }
+          else { nuError.textContent = r.message || 'Failed'; }
+        }
+        async function resetPassword(userId) {
+          const np = prompt('New password for user #' + userId);
+          if (!np) return;
+          const r = await CALLMASTER_API.post('/api/callmaster/admin/users/' + userId + '/reset-password', { new_password: np });
+          r.success ? toast('Password reset', 'success') : toast(r.message || 'Failed', 'error');
+        }
+        async function deactivateUser(userId) {
+          if (!confirm('Deactivate user #' + userId + '?')) return;
+          const r = await CALLMASTER_API.patch('/api/callmaster/admin/users/' + userId + '/deactivate', {});
+          r.success ? (toast('Deactivated', 'success'), go('admin-users')) : toast(r.message || 'Failed', 'error');
+        }
+        async function activateUser(userId) {
+          const r = await CALLMASTER_API.put('/api/callmaster/admin/users/' + userId, { active: 1 });
+          r.success ? (toast('Activated', 'success'), go('admin-users')) : toast(r.message || 'Failed', 'error');
+        }
+        async function deleteUser(userId) {
+          if (!confirm('Permanently delete user #' + userId + '? This cannot be undone.')) return;
+          const r = await CALLMASTER_API.delete('/api/callmaster/admin/users/' + userId);
+          r.success ? (toast('Deleted', 'success'), go('admin-users')) : toast(r.message || 'Failed', 'error');
+        }
+      </script>`;
   },
 
+  // ── PAGE 2: Employee Management ─────────────────────────────────────────────
+  'admin-employees': async function(preset) {
+    const r = await CALLMASTER_API.get('/api/callmaster/admin/employees');
+    const emps = r.data || [];
+    return `
+      ${pageHeader('Employee Management', `${emps.length} employees · employee_mapping_master`)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddEmpModal()">+ Add Employee</button>
+      </div>
+      ${table(
+        [
+          { key: 'employee_code', label: 'Code',    render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'employee_name', label: 'Name' },
+          { key: 'process_name',  label: 'Process' },
+          { key: 'branch',        label: 'Branch' },
+          { key: 'designation',   label: 'Designation', render: v => v || '—' },
+          { key: 'team_leader_code', label: 'TL Code', render: v => v ? `<span class="td-mono">${v}</span>` : '—' },
+          { key: 'active_status', label: 'Active', render: v => v ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-gray">No</span>' },
+          { key: 'emp_id',        label: 'Actions', render: v => `<button class="btn btn-sm btn-danger" onclick="deleteEmployee(${v})">Delete</button>` },
+        ],
+        emps,
+        { emptyMsg: 'No employees found' }
+      )}
+      <div id="addEmpModal" class="modal-overlay" style="display:none">
+        <div class="modal-box">
+          <div class="modal-title">Add Employee</div>
+          <div class="form-group"><label class="form-label">Employee Code</label><input class="filter-input" id="aeCode"></div>
+          <div class="form-group"><label class="form-label">Employee Name</label><input class="filter-input" id="aeName"></div>
+          <div class="form-group"><label class="form-label">Process Name</label><input class="filter-input" id="aeProcess"></div>
+          <div class="form-group"><label class="form-label">Branch</label><input class="filter-input" id="aeBranch"></div>
+          <div class="form-group"><label class="form-label">Designation</label><input class="filter-input" id="aeDesignation"></div>
+          <div class="form-group"><label class="form-label">Team Leader Code</label><input class="filter-input" id="aeTlCode"></div>
+          <div id="aeError" style="color:var(--danger);font-size:13px"></div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-primary" onclick="submitAddEmp()">Create</button>
+            <button class="btn" onclick="document.getElementById('addEmpModal').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <script>
+        function showAddEmpModal() { document.getElementById('addEmpModal').style.display='flex'; }
+        async function submitAddEmp() {
+          const aeError = document.getElementById('aeError');
+          aeError.textContent = '';
+          const body = {
+            employee_code: document.getElementById('aeCode').value.trim(),
+            employee_name: document.getElementById('aeName').value.trim(),
+            process_name:  document.getElementById('aeProcess').value.trim(),
+            branch:        document.getElementById('aeBranch').value.trim(),
+            designation:   document.getElementById('aeDesignation').value.trim() || undefined,
+            team_leader_code: document.getElementById('aeTlCode').value.trim() || undefined,
+          };
+          if (!body.employee_code || !body.employee_name || !body.process_name || !body.branch) { aeError.textContent = 'Code, name, process and branch are required'; return; }
+          const r = await CALLMASTER_API.post('/api/callmaster/admin/employees', body);
+          if (r.success) { document.getElementById('addEmpModal').style.display='none'; toast('Employee created', 'success'); go('admin-employees'); }
+          else { aeError.textContent = r.message || 'Failed'; }
+        }
+        async function deleteEmployee(empId) {
+          if (!confirm('Delete employee #' + empId + '?')) return;
+          const r = await CALLMASTER_API.delete('/api/callmaster/admin/employees/' + empId);
+          r.success ? (toast('Deleted', 'success'), go('admin-employees')) : toast(r.message || 'Failed', 'error');
+        }
+      </script>`;
+  },
+
+  // ── PAGE 3: Agent Aliases ────────────────────────────────────────────────────
+  'admin-aliases': async function(preset) {
+    const r = await CALLMASTER_API.get('/api/callmaster/admin/aliases');
+    const aliases = r.data || [];
+    return `
+      ${pageHeader('Agent Alias Mapping', `${aliases.length} aliases · employee_source_alias`)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddAliasModal()">+ Add Alias</button>
+      </div>
+      ${table(
+        [
+          { key: 'alias_id',      label: 'ID',    render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'source_alias',  label: 'Source Alias (DB name)', render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'employee_code', label: 'Employee Code', render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'employee_name', label: 'Employee Name', render: v => v || '—' },
+          { key: 'process_name',  label: 'Process' },
+          { key: 'alias_id',      label: 'Actions', render: v => `<button class="btn btn-sm btn-danger" onclick="deleteAlias(${v})">Delete</button>` },
+        ],
+        aliases,
+        { emptyMsg: 'No aliases configured' }
+      )}
+      <div id="addAliasModal" class="modal-overlay" style="display:none">
+        <div class="modal-box">
+          <div class="modal-title">Add Alias Mapping</div>
+          <div class="form-group"><label class="form-label">Source Alias (as it appears in DB)</label><input class="filter-input" id="alSource"></div>
+          <div class="form-group"><label class="form-label">Employee Code</label><input class="filter-input" id="alEmpCode"></div>
+          <div class="form-group"><label class="form-label">Process Name</label><input class="filter-input" id="alProcess"></div>
+          <div id="alError" style="color:var(--danger);font-size:13px"></div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-primary" onclick="submitAddAlias()">Create</button>
+            <button class="btn" onclick="document.getElementById('addAliasModal').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <script>
+        function showAddAliasModal() { document.getElementById('addAliasModal').style.display='flex'; }
+        async function submitAddAlias() {
+          const alError = document.getElementById('alError');
+          alError.textContent = '';
+          const body = {
+            source_alias:  document.getElementById('alSource').value.trim(),
+            employee_code: document.getElementById('alEmpCode').value.trim(),
+            process_name:  document.getElementById('alProcess').value.trim(),
+          };
+          if (!body.source_alias || !body.employee_code || !body.process_name) { alError.textContent = 'All fields required'; return; }
+          const r = await CALLMASTER_API.post('/api/callmaster/admin/aliases', body);
+          if (r.success) { document.getElementById('addAliasModal').style.display='none'; toast('Alias created', 'success'); go('admin-aliases'); }
+          else { alError.textContent = r.message || 'Failed'; }
+        }
+        async function deleteAlias(id) {
+          if (!confirm('Delete alias #' + id + '?')) return;
+          const r = await CALLMASTER_API.delete('/api/callmaster/admin/aliases/' + id);
+          r.success ? (toast('Deleted', 'success'), go('admin-aliases')) : toast(r.message || 'Failed', 'error');
+        }
+      </script>`;
+  },
+
+  // ── PAGE 4: Process Configuration ───────────────────────────────────────────
   'admin-processes': async function(preset) {
     const r = await CALLMASTER_API.get('/api/callmaster/admin/processes');
     const procs = r.data || [];
     return `
-      ${pageHeader('Process Configuration', 'process_mapping_master')}
+      ${pageHeader('Process Configuration', `${procs.length} processes · process_mapping_master`)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddProcessModal()">+ Add Process</button>
+      </div>
       ${table(
         [
           { key: 'process_name',      label: 'Process' },
           { key: 'source_type',       label: 'Type', render: v => `<span class="badge badge-${v==='Inbound'?'blue':'violet'}">${v}</span>` },
           { key: 'business_lob',      label: 'LOB' },
           { key: 'branch',            label: 'Branch' },
-          { key: 'dialdesk_client_id',label: 'Client ID', render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'dialdesk_client_id',label: 'Client ID', render: v => v ? `<span class="td-mono">${v}</span>` : '—' },
+          { key: 'target_cq_pct',     label: 'Target CQ%', render: v => v != null ? `<span class="td-mono">${v}%</span>` : '—' },
           { key: 'active_status',     label: 'Active', render: v => v ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-gray">No</span>' },
+          { key: 'process_id',        label: 'Actions', render: v => `
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-sm" onclick="editTargetCq(${v})">Edit Target</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteProcess(${v})">Delete</button>
+            </div>` },
         ],
-        procs
-      )}`;
+        procs,
+        { emptyMsg: 'No processes configured' }
+      )}
+      <div id="addProcessModal" class="modal-overlay" style="display:none">
+        <div class="modal-box">
+          <div class="modal-title">Add Process</div>
+          <div class="form-group"><label class="form-label">Process Name</label><input class="filter-input" id="apName"></div>
+          <div class="form-group"><label class="form-label">Business LOB</label><input class="filter-input" id="apLob"></div>
+          <div class="form-group"><label class="form-label">Branch</label><input class="filter-input" id="apBranch"></div>
+          <div class="form-group"><label class="form-label">Source Type</label>
+            <select class="filter-select" id="apType">
+              <option value="Inbound">Inbound</option>
+              <option value="Outbound">Outbound</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Dialdesk Client ID (Outbound)</label><input class="filter-input" id="apClientId"></div>
+          <div class="form-group"><label class="form-label">Target CQ% (leave blank for default)</label><input class="filter-input" id="apTarget" type="number" min="0" max="100"></div>
+          <div id="apError" style="color:var(--danger);font-size:13px"></div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-primary" onclick="submitAddProcess()">Create</button>
+            <button class="btn" onclick="document.getElementById('addProcessModal').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <script>
+        function showAddProcessModal() { document.getElementById('addProcessModal').style.display='flex'; }
+        async function submitAddProcess() {
+          const apError = document.getElementById('apError');
+          apError.textContent = '';
+          const tgt = document.getElementById('apTarget').value;
+          const body = {
+            process_name:      document.getElementById('apName').value.trim(),
+            business_lob:      document.getElementById('apLob').value.trim(),
+            branch:            document.getElementById('apBranch').value.trim(),
+            source_type:       document.getElementById('apType').value,
+            dialdesk_client_id: document.getElementById('apClientId').value.trim() || undefined,
+            target_cq_pct:     tgt ? Number(tgt) : undefined,
+          };
+          if (!body.process_name || !body.business_lob || !body.branch) { apError.textContent = 'Process name, LOB and branch are required'; return; }
+          const r = await CALLMASTER_API.post('/api/callmaster/admin/processes', body);
+          if (r.success) { document.getElementById('addProcessModal').style.display='none'; toast('Process created', 'success'); go('admin-processes'); }
+          else { apError.textContent = r.message || 'Failed'; }
+        }
+        async function editTargetCq(processId) {
+          const val = prompt('New target CQ% for process #' + processId + ' (e.g. 90):');
+          if (val === null) return;
+          const r = await CALLMASTER_API.put('/api/callmaster/admin/processes/' + processId, { target_cq_pct: Number(val) });
+          r.success ? (toast('Target updated', 'success'), go('admin-processes')) : toast(r.message || 'Failed', 'error');
+        }
+        async function deleteProcess(processId) {
+          if (!confirm('Delete process #' + processId + '? All related config will be lost.')) return;
+          const r = await CALLMASTER_API.delete('/api/callmaster/admin/processes/' + processId);
+          r.success ? (toast('Deleted', 'success'), go('admin-processes')) : toast(r.message || 'Failed', 'error');
+        }
+      </script>`;
   },
 
+  // ── PAGE 5: Exclusion Rules ──────────────────────────────────────────────────
+  'admin-exclusions': async function(preset) {
+    const r = await CALLMASTER_API.get('/api/callmaster/admin/exclusions');
+    const rules = r.data || [];
+    return `
+      ${pageHeader('Exclusion Rules', `${rules.length} rules · dashboard_exclusion_rules`)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddExclusionModal()">+ Add Rule</button>
+      </div>
+      ${table(
+        [
+          { key: 'process_name', label: 'Process' },
+          { key: 'source_type',  label: 'Type', render: v => `<span class="badge badge-${v==='Inbound'?'blue':'violet'}">${v}</span>` },
+          { key: 'field_name',   label: 'Field', render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'operator',     label: 'Operator', render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'field_value',  label: 'Value', render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'reason',       label: 'Reason', render: v => v || '—' },
+          { key: 'rule_id',      label: 'Actions', render: v => `<button class="btn btn-sm btn-danger" onclick="deleteExclusion(${v})">Delete</button>` },
+        ],
+        rules,
+        { emptyMsg: 'No exclusion rules configured' }
+      )}
+      <div id="addExclusionModal" class="modal-overlay" style="display:none">
+        <div class="modal-box">
+          <div class="modal-title">Add Exclusion Rule</div>
+          <div class="form-group"><label class="form-label">Process Name</label><input class="filter-input" id="exProcess"></div>
+          <div class="form-group"><label class="form-label">Source Type</label>
+            <select class="filter-select" id="exType"><option value="Inbound">Inbound</option><option value="Outbound">Outbound</option></select>
+          </div>
+          <div class="form-group"><label class="form-label">Field Name</label><input class="filter-input" id="exField" placeholder="e.g. agent_employee_code"></div>
+          <div class="form-group"><label class="form-label">Operator</label>
+            <select class="filter-select" id="exOp"><option value="=">=</option><option value="!=">!=</option><option value="LIKE">LIKE</option><option value="NOT LIKE">NOT LIKE</option></select>
+          </div>
+          <div class="form-group"><label class="form-label">Value</label><input class="filter-input" id="exValue"></div>
+          <div class="form-group"><label class="form-label">Reason (optional)</label><input class="filter-input" id="exReason"></div>
+          <div id="exError" style="color:var(--danger);font-size:13px"></div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-primary" onclick="submitAddExclusion()">Create</button>
+            <button class="btn" onclick="document.getElementById('addExclusionModal').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <script>
+        function showAddExclusionModal() { document.getElementById('addExclusionModal').style.display='flex'; }
+        async function submitAddExclusion() {
+          const exError = document.getElementById('exError');
+          exError.textContent = '';
+          const body = {
+            process_name: document.getElementById('exProcess').value.trim(),
+            source_type:  document.getElementById('exType').value,
+            field_name:   document.getElementById('exField').value.trim(),
+            operator:     document.getElementById('exOp').value,
+            field_value:  document.getElementById('exValue').value.trim(),
+            reason:       document.getElementById('exReason').value.trim() || undefined,
+          };
+          if (!body.process_name || !body.field_name || !body.field_value) { exError.textContent = 'Process, field and value are required'; return; }
+          const r = await CALLMASTER_API.post('/api/callmaster/admin/exclusions', body);
+          if (r.success) { document.getElementById('addExclusionModal').style.display='none'; toast('Rule created', 'success'); go('admin-exclusions'); }
+          else { exError.textContent = r.message || 'Failed'; }
+        }
+        async function deleteExclusion(id) {
+          if (!confirm('Delete exclusion rule #' + id + '?')) return;
+          const r = await CALLMASTER_API.delete('/api/callmaster/admin/exclusions/' + id);
+          r.success ? (toast('Deleted', 'success'), go('admin-exclusions')) : toast(r.message || 'Failed', 'error');
+        }
+      </script>`;
+  },
+
+  // ── PAGE 6: Coaching Queue ───────────────────────────────────────────────────
+  'admin-coaching': async function(preset) {
+    const r = await CALLMASTER_API.get('/api/callmaster/admin/coaching?status=Open');
+    const d = r.data || {};
+    const rows = d.rows || d || [];
+    return `
+      ${pageHeader('Coaching Queue', `${d.total != null ? d.total + ' total' : rows.length} open items`)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddCoachingModal()">+ Add Entry</button>
+        <button class="btn" onclick="bulkCloseSelected()">Bulk Close Selected</button>
+      </div>
+      <div id="coachingTable">
+      ${table(
+        [
+          { key: 'id',            label: '', render: v => `<input type="checkbox" class="coaching-cb" value="${v}">` },
+          { key: 'agent_employee_code', label: 'Code', render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'agent_employee_name', label: 'Agent' },
+          { key: 'process_name',  label: 'Process' },
+          { key: 'title',         label: 'Topic' },
+          { key: 'priority',      label: 'Priority', render: v => `<span class="badge badge-${v==='High'?'red':v==='Medium'?'yellow':'gray'}">${v}</span>` },
+          { key: 'assigned_to',   label: 'Coach', render: v => v || '—' },
+          { key: 'due_date',      label: 'Due' },
+          { key: 'id',            label: 'Actions', render: v => `<button class="btn btn-sm" onclick="closeCoaching(${v})">Close</button>` },
+        ],
+        rows,
+        { emptyMsg: 'No open coaching items' }
+      )}
+      </div>
+      <div id="addCoachingModal" class="modal-overlay" style="display:none">
+        <div class="modal-box">
+          <div class="modal-title">Add Coaching Entry</div>
+          <div class="form-group"><label class="form-label">Agent Employee Code</label><input class="filter-input" id="cqEmpCode"></div>
+          <div class="form-group"><label class="form-label">Agent Name</label><input class="filter-input" id="cqEmpName"></div>
+          <div class="form-group"><label class="form-label">Process Name</label><input class="filter-input" id="cqProcess"></div>
+          <div class="form-group"><label class="form-label">Source Call ID (optional)</label><input class="filter-input" id="cqCallId"></div>
+          <div class="form-group"><label class="form-label">Coaching Topic</label><input class="filter-input" id="cqTitle"></div>
+          <div class="form-group"><label class="form-label">Reason / Notes</label><textarea class="filter-input" id="cqReason" rows="3"></textarea></div>
+          <div class="form-group"><label class="form-label">Priority</label>
+            <select class="filter-select" id="cqPriority"><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option></select>
+          </div>
+          <div class="form-group"><label class="form-label">Assigned Coach</label><input class="filter-input" id="cqAssigned"></div>
+          <div class="form-group"><label class="form-label">Due Date</label><input class="filter-input" id="cqDue" type="date"></div>
+          <div id="cqError" style="color:var(--danger);font-size:13px"></div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-primary" onclick="submitAddCoaching()">Create</button>
+            <button class="btn" onclick="document.getElementById('addCoachingModal').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <script>
+        function showAddCoachingModal() { document.getElementById('addCoachingModal').style.display='flex'; }
+        async function submitAddCoaching() {
+          const cqError = document.getElementById('cqError');
+          cqError.textContent = '';
+          const body = {
+            agent_employee_code: document.getElementById('cqEmpCode').value.trim(),
+            agent_employee_name: document.getElementById('cqEmpName').value.trim(),
+            process_name:        document.getElementById('cqProcess').value.trim(),
+            source_call_id:      document.getElementById('cqCallId').value.trim() || undefined,
+            coaching_title:      document.getElementById('cqTitle').value.trim(),
+            coaching_reason:     document.getElementById('cqReason').value.trim(),
+            priority:            document.getElementById('cqPriority').value,
+            assigned_to:         document.getElementById('cqAssigned').value.trim() || undefined,
+            due_date:            document.getElementById('cqDue').value || undefined,
+          };
+          if (!body.agent_employee_code || !body.coaching_title || !body.coaching_reason) { cqError.textContent = 'Employee code, topic and reason are required'; return; }
+          const r = await CALLMASTER_API.post('/api/callmaster/admin/coaching', body);
+          if (r.success) { document.getElementById('addCoachingModal').style.display='none'; toast('Coaching entry created', 'success'); go('admin-coaching'); }
+          else { cqError.textContent = r.message || 'Failed'; }
+        }
+        async function closeCoaching(id) {
+          const r = await CALLMASTER_API.put('/api/callmaster/admin/coaching/' + id, { status: 'Closed' });
+          r.success ? (toast('Closed', 'success'), go('admin-coaching')) : toast(r.message || 'Failed', 'error');
+        }
+        async function bulkCloseSelected() {
+          const ids = [...document.querySelectorAll('.coaching-cb:checked')].map(el => Number(el.value));
+          if (!ids.length) { toast('No items selected', 'error'); return; }
+          const r = await CALLMASTER_API.post('/api/callmaster/admin/coaching/bulk-close', { ids });
+          r.success ? (toast(r.data.updated + ' items closed', 'success'), go('admin-coaching')) : toast(r.message || 'Failed', 'error');
+        }
+      </script>`;
+  },
+
+  // ── PAGE 7: Calibration Sessions ────────────────────────────────────────────
+  'admin-calibration': async function(preset) {
+    const r = await CALLMASTER_API.get('/api/callmaster/admin/calibration/sessions');
+    const d = r.data || {};
+    const sessions = d.rows || d || [];
+    return `
+      ${pageHeader('Calibration Sessions', `${d.total != null ? d.total + ' total' : sessions.length} sessions`)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddCalibModal()">+ New Session</button>
+      </div>
+      ${table(
+        [
+          { key: 'session_id',       label: 'ID',    render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'process_name',     label: 'Process' },
+          { key: 'session_date',     label: 'Date' },
+          { key: 'facilitator_name', label: 'Facilitator' },
+          { key: 'session_status',   label: 'Status', render: v => `<span class="badge badge-${v==='Completed'?'green':v==='In Progress'?'yellow':'gray'}">${v}</span>` },
+          { key: 'participant_count',label: 'Participants', render: v => v || '—' },
+          { key: 'session_id',       label: 'Actions', render: v => `
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-sm" onclick="go('admin-calibration-calls', {sessionId: ${v}})">View Calls</button>
+              <button class="btn btn-sm" onclick="markCalibComplete(${v})">Mark Complete</button>
+            </div>` },
+        ],
+        sessions,
+        { emptyMsg: 'No calibration sessions' }
+      )}
+      <div id="addCalibModal" class="modal-overlay" style="display:none">
+        <div class="modal-box">
+          <div class="modal-title">New Calibration Session</div>
+          <div class="form-group"><label class="form-label">Process Name</label><input class="filter-input" id="csProcess"></div>
+          <div class="form-group"><label class="form-label">Session Date</label><input class="filter-input" id="csDate" type="date"></div>
+          <div class="form-group"><label class="form-label">Facilitator Name</label><input class="filter-input" id="csFacilitator"></div>
+          <div class="form-group"><label class="form-label">Notes (optional)</label><textarea class="filter-input" id="csNotes" rows="2"></textarea></div>
+          <div id="csError" style="color:var(--danger);font-size:13px"></div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-primary" onclick="submitAddCalib()">Create</button>
+            <button class="btn" onclick="document.getElementById('addCalibModal').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <script>
+        function showAddCalibModal() { document.getElementById('addCalibModal').style.display='flex'; }
+        async function submitAddCalib() {
+          const csError = document.getElementById('csError');
+          csError.textContent = '';
+          const body = {
+            process_name:     document.getElementById('csProcess').value.trim(),
+            session_date:     document.getElementById('csDate').value,
+            facilitator_name: document.getElementById('csFacilitator').value.trim(),
+            notes:            document.getElementById('csNotes').value.trim() || undefined,
+          };
+          if (!body.process_name || !body.session_date || !body.facilitator_name) { csError.textContent = 'Process, date and facilitator are required'; return; }
+          const r = await CALLMASTER_API.post('/api/callmaster/admin/calibration/sessions', body);
+          if (r.success) { document.getElementById('addCalibModal').style.display='none'; toast('Session created · ID ' + r.data.session_id, 'success'); go('admin-calibration'); }
+          else { csError.textContent = r.message || 'Failed'; }
+        }
+        async function markCalibComplete(sessionId) {
+          const r = await CALLMASTER_API.put('/api/callmaster/admin/calibration/sessions/' + sessionId, { session_status: 'Completed' });
+          r.success ? (toast('Marked complete', 'success'), go('admin-calibration')) : toast(r.message || 'Failed', 'error');
+        }
+      </script>`;
+  },
+
+  // ── PAGE 8: Calibration Call Detail ─────────────────────────────────────────
+  'admin-calibration-calls': async function(preset, params = {}) {
+    const sessionId = params.sessionId || window._calibSessionId;
+    if (!sessionId) return `${pageHeader('Calibration Calls')}${emptyState('No session selected — go back to Calibration Sessions and click View Calls')}`;
+    window._calibSessionId = sessionId;
+    const r = await CALLMASTER_API.get('/api/callmaster/admin/calibration/sessions/' + sessionId + '/calls');
+    const calls = r.data || [];
+    return `
+      ${pageHeader('Calibration Calls', `Session #${sessionId}`)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn" onclick="go('admin-calibration')">← Back to Sessions</button>
+        <button class="btn btn-primary" onclick="showAddCalibCallModal(${sessionId})">+ Add Call</button>
+      </div>
+      ${table(
+        [
+          { key: 'source_call_id',    label: 'Call ID', render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'employee_name',     label: 'Agent', render: (v, row) => v || row.agent_employee_code },
+          { key: 'facilitator_score', label: 'Facilitator Score', render: v => `<span class="td-mono">${v}%</span>` },
+          { key: 'agreed_score',      label: 'Agreed Score',      render: v => v != null ? `<span class="td-mono">${v}%</span>` : '—' },
+          { key: 'variance',          label: 'Variance',          render: v => v != null ? `<span class="td-mono ${v > 5 ? 'sev-high' : ''}">${v}%</span>` : '—' },
+          { key: 'call_notes',        label: 'Notes', render: v => v || '—' },
+        ],
+        calls,
+        { emptyMsg: 'No calls added to this session yet' }
+      )}
+      <div id="addCalibCallModal" class="modal-overlay" style="display:none">
+        <div class="modal-box">
+          <div class="modal-title">Add Calibration Call</div>
+          <div class="form-group"><label class="form-label">Source Call ID</label><input class="filter-input" id="ccCallId"></div>
+          <div class="form-group"><label class="form-label">Agent Employee Code</label><input class="filter-input" id="ccEmpCode"></div>
+          <div class="form-group"><label class="form-label">Facilitator Score (%)</label><input class="filter-input" id="ccFacScore" type="number" min="0" max="100"></div>
+          <div class="form-group"><label class="form-label">Agreed Score (%) — leave blank if not yet agreed</label><input class="filter-input" id="ccAgreedScore" type="number" min="0" max="100"></div>
+          <div class="form-group"><label class="form-label">Notes (optional)</label><textarea class="filter-input" id="ccNotes" rows="2"></textarea></div>
+          <div id="ccError" style="color:var(--danger);font-size:13px"></div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-primary" onclick="submitAddCalibCall(${sessionId})">Add</button>
+            <button class="btn" onclick="document.getElementById('addCalibCallModal').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <script>
+        function showAddCalibCallModal(sid) { document.getElementById('addCalibCallModal').style.display='flex'; }
+        async function submitAddCalibCall(sessionId) {
+          const ccError = document.getElementById('ccError');
+          ccError.textContent = '';
+          const agreedVal = document.getElementById('ccAgreedScore').value;
+          const body = {
+            session_id:         sessionId,
+            source_call_id:     document.getElementById('ccCallId').value.trim(),
+            agent_employee_code: document.getElementById('ccEmpCode').value.trim(),
+            facilitator_score:  Number(document.getElementById('ccFacScore').value),
+            agreed_score:       agreedVal ? Number(agreedVal) : undefined,
+            call_notes:         document.getElementById('ccNotes').value.trim() || undefined,
+          };
+          if (!body.source_call_id || !body.agent_employee_code || isNaN(body.facilitator_score)) { ccError.textContent = 'Call ID, employee code and facilitator score are required'; return; }
+          const r = await CALLMASTER_API.post('/api/callmaster/admin/calibration/calls', body);
+          if (r.success) { document.getElementById('addCalibCallModal').style.display='none'; toast('Call added', 'success'); go('admin-calibration-calls', { sessionId }); }
+          else { ccError.textContent = r.message || 'Failed'; }
+        }
+      </script>`;
+  },
+
+  // ── PAGE 9: Audit Prompt Config ──────────────────────────────────────────────
+  'admin-audit-config': async function(preset) {
+    const r = await CALLMASTER_API.get('/api/callmaster/admin/audit-prompts');
+    const prompts = r.data || [];
+    return `
+      ${pageHeader('Audit Prompt Config', `${prompts.length} parameters · audit_prompt_config`)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddPromptModal()">+ Add Parameter</button>
+      </div>
+      ${table(
+        [
+          { key: 'process_name',   label: 'Process' },
+          { key: 'source_type',    label: 'Type', render: v => `<span class="badge badge-${v==='Inbound'?'blue':'violet'}">${v}</span>` },
+          { key: 'parameter_name', label: 'Parameter', render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'max_marks',      label: 'Max Marks', render: v => `<span class="td-mono">${v}</span>` },
+          { key: 'active',         label: 'Active', render: v => v ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-gray">No</span>' },
+          { key: 'prompt_id',      label: 'Actions', render: v => `
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-sm" onclick="togglePromptActive(${v})">Toggle Active</button>
+              <button class="btn btn-sm btn-danger" onclick="deletePrompt(${v})">Delete</button>
+            </div>` },
+        ],
+        prompts,
+        { emptyMsg: 'No audit parameters configured' }
+      )}
+      <div id="addPromptModal" class="modal-overlay" style="display:none">
+        <div class="modal-box">
+          <div class="modal-title">Add Audit Parameter</div>
+          <div class="form-group"><label class="form-label">Process Name</label><input class="filter-input" id="prProcess"></div>
+          <div class="form-group"><label class="form-label">Source Type</label>
+            <select class="filter-select" id="prType"><option value="Inbound">Inbound</option><option value="Outbound">Outbound</option></select>
+          </div>
+          <div class="form-group"><label class="form-label">Parameter Name</label><input class="filter-input" id="prName"></div>
+          <div class="form-group"><label class="form-label">Max Marks</label><input class="filter-input" id="prMarks" type="number" min="1"></div>
+          <div class="form-group"><label class="form-label">Prompt Text (evaluation instruction)</label><textarea class="filter-input" id="prText" rows="3"></textarea></div>
+          <div id="prError" style="color:var(--danger);font-size:13px"></div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-primary" onclick="submitAddPrompt()">Create</button>
+            <button class="btn" onclick="document.getElementById('addPromptModal').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <script>
+        function showAddPromptModal() { document.getElementById('addPromptModal').style.display='flex'; }
+        async function submitAddPrompt() {
+          const prError = document.getElementById('prError');
+          prError.textContent = '';
+          const body = {
+            process_name:   document.getElementById('prProcess').value.trim(),
+            source_type:    document.getElementById('prType').value,
+            parameter_name: document.getElementById('prName').value.trim(),
+            max_marks:      Number(document.getElementById('prMarks').value),
+            prompt_text:    document.getElementById('prText').value.trim(),
+          };
+          if (!body.process_name || !body.parameter_name || !body.prompt_text || !body.max_marks) { prError.textContent = 'All fields required'; return; }
+          const r = await CALLMASTER_API.post('/api/callmaster/admin/audit-prompts', body);
+          if (r.success) { document.getElementById('addPromptModal').style.display='none'; toast('Parameter created', 'success'); go('admin-audit-config'); }
+          else { prError.textContent = r.message || 'Failed'; }
+        }
+        async function togglePromptActive(promptId) {
+          const r = await CALLMASTER_API.get('/api/callmaster/admin/audit-prompts');
+          const cur = (r.data || []).find(p => p.prompt_id === promptId);
+          const newActive = cur ? (cur.active ? 0 : 1) : 1;
+          const r2 = await CALLMASTER_API.put('/api/callmaster/admin/audit-prompts/' + promptId, { active: newActive });
+          r2.success ? (toast('Updated', 'success'), go('admin-audit-config')) : toast(r2.message || 'Failed', 'error');
+        }
+        async function deletePrompt(promptId) {
+          if (!confirm('Delete audit parameter #' + promptId + '?')) return;
+          const r = await CALLMASTER_API.delete('/api/callmaster/admin/audit-prompts/' + promptId);
+          r.success ? (toast('Deleted', 'success'), go('admin-audit-config')) : toast(r.message || 'Failed', 'error');
+        }
+      </script>`;
+  },
+
+  // ── PAGE 10: Data Source Mapping ─────────────────────────────────────────────
   'admin-data-sources': async function(preset) {
     return `
-      ${pageHeader('Data Source Mapping', 'ProcessRegistry')}
+      ${pageHeader('Data Source Mapping', 'ProcessRegistry — read only')}
       <div class="grid-2">
         <div class="card">
-          <div class="card-title">Inbound</div>
-          <div class="kpi-sub">Source DB: <code>db_audit.call_quality_assessment</code></div>
+          <div class="card-title">Inbound Source</div>
+          <div class="kpi-sub">DB: <code>db_audit</code></div>
+          <div class="kpi-sub" style="margin-top:8px">Table: <code>call_quality_assessment</code></div>
+          <div class="kpi-sub" style="margin-top:8px">QA: <code>manual_qa_audit</code></div>
           <div class="kpi-sub" style="margin-top:8px">View: <code>v_call_master_inbound_kpi</code></div>
-          <div class="kpi-sub" style="margin-top:8px">QA Params: <code>db_audit.manual_qa_audit</code></div>
         </div>
         <div class="card">
-          <div class="card-title">Outbound</div>
-          <div class="kpi-sub">Source DB: <code>db_external.CallDetails</code></div>
-          <div class="kpi-sub" style="margin-top:8px">View: <code>v_call_master_outbound_kpi</code></div>
+          <div class="card-title">Outbound Source</div>
+          <div class="kpi-sub">DB: <code>db_external</code></div>
+          <div class="kpi-sub" style="margin-top:8px">Table: <code>CallDetails</code></div>
           <div class="kpi-sub" style="margin-top:8px">AI Insights: <code>Shivamgiri.call_ai_insight</code></div>
+          <div class="kpi-sub" style="margin-top:8px">View: <code>v_call_master_outbound_kpi</code></div>
         </div>
       </div>
       <div class="card" style="margin-top:16px">
         <div class="card-title">Unified View</div>
-        <div class="kpi-sub"><code>v_call_master_unified_kpi</code> — UNION ALL of Inbound + Outbound KPI rows</div>
+        <div class="kpi-sub"><code>v_call_master_unified_kpi</code> — UNION ALL of Inbound + Outbound KPI rows, used for cross-process analysis</div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">RW Tables (Shivamgiri)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+          ${['process_mapping_master','employee_mapping_master','employee_source_alias','cm_users',
+             'call_coaching_queue','calibration_session','calibration_call','audit_prompt_config',
+             'dashboard_exclusion_rules','call_ai_insight','call_feedback_log','manual_qa_audit'
+            ].map(t => `<span class="badge badge-gray" style="font-family:monospace">${t}</span>`).join('')}
+        </div>
       </div>`;
   },
 
+  // ── PAGE 11: Role Impersonation ──────────────────────────────────────────────
   'admin-impersonate': async function(preset) {
     const r = await CALLMASTER_API.get('/api/callmaster/admin/users');
     const users = (r.data || []).filter(u => u.active);
     return `
-      ${pageHeader('Role Impersonation', 'Issue temporary token for any user (1 hour)')}
-      <div class="card" style="max-width:400px">
+      ${pageHeader('Role Impersonation', 'Issue a 1-hour token for any active user to view their dashboard perspective')}
+      <div class="card" style="max-width:420px">
         <div class="form-group">
-          <label class="form-label">Select User to Impersonate</label>
+          <label class="form-label">Select User</label>
           <select class="filter-select" id="impersonateSelect" style="width:100%;padding:10px">
-            <option value="">— select —</option>
-            ${users.map(u => `<option value="${u.user_id}">${u.full_name} (${u.role})</option>`).join('')}
+            <option value="">— select user —</option>
+            ${users.map(u => `<option value="${u.user_id}">${u.full_name} · ${u.role.replace(/_/g,' ')}</option>`).join('')}
           </select>
         </div>
-        <button class="btn btn-primary" onclick="doImpersonate()">Switch View</button>
+        <button class="btn btn-primary" style="margin-top:8px" onclick="doImpersonate()">Switch View</button>
         <div id="impersonateError" style="color:var(--danger);font-size:13px;margin-top:8px"></div>
+        <div class="kpi-sub" style="margin-top:16px">Your original admin session will be replaced. Refresh the page to return to admin.</div>
       </div>
       <script>
         async function doImpersonate() {
@@ -1162,7 +2300,7 @@ const ADMIN_PAGES = {
           const r = await CALLMASTER_API.post('/api/callmaster/admin/impersonate', { target_user_id: Number(uid) });
           if (r.success) {
             onLogin(r.token, r.user);
-            toast('Switched to ' + r.user.full_name + ' (' + r.user.role + ')', 'info');
+            toast('Switched to ' + r.user.full_name + ' (' + r.user.role.replace(/_/g,' ') + ')', 'info');
           } else {
             document.getElementById('impersonateError').textContent = r.message || 'Failed';
           }
@@ -1170,29 +2308,31 @@ const ADMIN_PAGES = {
       </script>`;
   },
 
+  // ── PAGE 12: System Health ───────────────────────────────────────────────────
   'admin-health': async function(preset) {
     const r = await CALLMASTER_API.get('/api/callmaster/admin/system-health');
     const d = r.data || {};
     const pools = d.pools || {};
+    const poolEntries = Object.entries(pools).filter(([k]) => ['shivamgiri','db_external'].includes(k));
+    const counters = Object.entries(pools).filter(([k]) => !['shivamgiri','db_external'].includes(k));
     return `
       ${pageHeader('System Health', `Checked: ${d.checked_at ? new Date(d.checked_at).toLocaleTimeString() : '—'}`)}
-      <div class="kpi-grid">
-        ${Object.entries(pools).map(([name, info]: [string, any]) => kpi(
-          name.toUpperCase(),
-          info.status === 'ok' ? '✓ OK' : '✗ Error',
-          info.latency_ms != null ? `${info.latency_ms}ms` : info.error || '',
+      <div class="kpi-grid" style="margin-bottom:16px">
+        ${poolEntries.map(([name, info]: [string, any]) => kpi(
+          name === 'shivamgiri' ? 'Shivamgiri (RW)' : 'db_external (RO)',
+          info.status === 'ok' ? '✓ Online' : '✗ Offline',
+          info.latency_ms != null ? `${info.latency_ms}ms latency` : info.error || '',
           info.status === 'ok' ? 'up' : 'down'
         )).join('')}
-        ${kpi('CM Users', d.pools?.cm_users_count != null ? d.pools.cm_users_count : '—', 'Active user accounts')}
-      </div>`;
-  },
-
-  'admin-audit-config': async function(preset) {
-    return `
-      ${pageHeader('Audit Configuration')}
-      <div class="empty-state">
-        <div class="empty-state-icon">⚙️</div>
-        <div class="empty-state-text">Audit parameter weight configuration — managed via audit_prompt_config table in Shivamgiri</div>
+      </div>
+      <div class="kpi-grid">
+        ${counters.map(([name, val]: [string, any]) => kpi(
+          name.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase()),
+          val != null ? String(val) : '—'
+        )).join('')}
+      </div>
+      <div style="margin-top:16px">
+        <button class="btn" onclick="go('admin-health')">Refresh</button>
       </div>`;
   },
 };
@@ -1202,7 +2342,7 @@ const ADMIN_PAGES = {
 
 ```bash
 git add public/callmaster/js/pages/admin.js
-git commit -m "feat(callmaster): implement Admin frontend pages (6 pages including impersonation)"
+git commit -m "feat(callmaster): implement Admin frontend pages (12 pages — users, employees, aliases, processes, exclusions, coaching, calibration, audit-config, data-sources, impersonation, system health)"
 ```
 
 ---
@@ -1231,9 +2371,18 @@ Test each persona:
 | `analyst` | analyst | My Defects | Bar chart + table |
 | `analyst` | analyst | Score Trend | Line chart with target line |
 | `analyst` | analyst | Coaching | Empty state or session cards |
-| `admin` | admin | User Management | Table with all cm_users |
-| `admin` | admin | System Health | Pool status KPI cards |
-| `admin` | admin | Impersonation | User dropdown renders |
+| `admin` | admin | User Management | Table with all cm_users; Add User modal opens |
+| `admin` | admin | Employee Management | Table renders; Add Employee modal opens |
+| `admin` | admin | Agent Aliases | Table renders; Add Alias modal opens |
+| `admin` | admin | Process Configuration | Table with target_cq_pct column; Edit Target prompt works |
+| `admin` | admin | Exclusion Rules | Table renders; Add Rule modal opens |
+| `admin` | admin | Coaching Queue | Table with checkboxes; Bulk Close button present |
+| `admin` | admin | Calibration Sessions | Table renders; New Session modal opens |
+| `admin` | admin | Calibration Calls | Empty state shown when no session selected |
+| `admin` | admin | Audit Prompt Config | Table renders; Add Parameter modal opens |
+| `admin` | admin | Data Source Mapping | Two source cards + unified view card render |
+| `admin` | admin | Impersonation | User dropdown renders with active users |
+| `admin` | admin | System Health | Pool status KPI cards with latency; counters shown |
 
 - [ ] **Step 3: Test CSV exports**
 

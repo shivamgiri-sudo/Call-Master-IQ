@@ -264,13 +264,51 @@ GET  /api/callmaster/analyst/coaching      → coaching notes received from T&Q 
 
 ### Admin
 ```
-GET    /api/callmaster/admin/users          → list all users
-POST   /api/callmaster/admin/users          → create user
-PUT    /api/callmaster/admin/users/:id      → update user (role, branches, processes)
-DELETE /api/callmaster/admin/users/:id      → deactivate user
-GET    /api/callmaster/admin/processes      → list process_mapping_master entries
-POST   /api/callmaster/admin/impersonate    → issue a temporary token for another role (admin only)
-GET    /api/callmaster/admin/system-health  → DB pool status + response time + error rates
+# ── User Management ──
+GET    /api/callmaster/admin/users              → list all cm_users (active + inactive)
+POST   /api/callmaster/admin/users              → create user (hashes password, stores in cm_users)
+PUT    /api/callmaster/admin/users/:id          → update user (role, branches, processes, name, employee_code)
+DELETE /api/callmaster/admin/users/:id          → soft-deactivate user (active=0)
+POST   /api/callmaster/admin/users/:id/reset-password → reset any user's password (admin only)
+
+# ── Employee Management (writes to Shivamgiri) ──
+GET    /api/callmaster/admin/employees          → list employee_mapping_master entries
+POST   /api/callmaster/admin/employees          → add employee (employee_code, name, branch, designation)
+PUT    /api/callmaster/admin/employees/:code    → update employee record
+DELETE /api/callmaster/admin/employees/:code    → deactivate employee (active_status=0)
+GET    /api/callmaster/admin/employee-aliases   → list employee_source_alias entries (source name → employee_code)
+POST   /api/callmaster/admin/employee-aliases   → add alias mapping (links agent display name in source DB to employee_code)
+DELETE /api/callmaster/admin/employee-aliases/:id → remove alias
+
+# ── Process Management (writes to Shivamgiri) ──
+GET    /api/callmaster/admin/processes          → list process_mapping_master entries
+POST   /api/callmaster/admin/processes          → add process (process_name, LOB, branch, dialdesk_client_id, source_type, target_cq_pct)
+PUT    /api/callmaster/admin/processes/:id      → update process config (target, branch, LOB)
+DELETE /api/callmaster/admin/processes/:id      → deactivate process (active_status=0)
+
+# ── Exclusion Rules (writes to Shivamgiri) ──
+GET    /api/callmaster/admin/exclusions         → list dashboard_exclusion_rules
+POST   /api/callmaster/admin/exclusions         → add exclusion rule (client_id, campaign_id, reason)
+DELETE /api/callmaster/admin/exclusions/:id     → remove exclusion rule (active_status=0)
+
+# ── Coaching Management (writes to Shivamgiri) ──
+GET    /api/callmaster/admin/coaching           → list all coaching sessions (all processes, all agents)
+POST   /api/callmaster/admin/coaching           → create coaching session manually
+PUT    /api/callmaster/admin/coaching/:id       → update coaching (reassign, change priority, close)
+POST   /api/callmaster/admin/coaching/bulk-close → bulk-close list of coaching_ids
+
+# ── Calibration Management (writes to Shivamgiri) ──
+GET    /api/callmaster/admin/calibration        → list all calibration_session entries
+POST   /api/callmaster/admin/calibration        → create calibration session
+PUT    /api/callmaster/admin/calibration/:id    → update session (add calls, close session)
+
+# ── Audit Config (writes to Shivamgiri) ──
+GET    /api/callmaster/admin/audit-config       → list audit_prompt_config per process
+PUT    /api/callmaster/admin/audit-config/:id   → update parameter weights for a process
+
+# ── System ──
+POST   /api/callmaster/admin/impersonate        → issue 1-hour temp token for any user role
+GET    /api/callmaster/admin/system-health      → DB pool status (3 pools) + cm_users count + process count
 ```
 
 ---
@@ -386,15 +424,21 @@ const USE_MOCK_DATA = true;  // flip to false when real DB confirmed
 | Score Trend | My day-wise quality line chart + target line |
 | Coaching Notes | Timeline of coaching sessions received; expand for details |
 
-### Admin (6 pages)
+### Admin (12 pages)
 | Page | Key Components |
 |---|---|
-| User Management | Table of all cm_users; create/edit/deactivate inline |
-| Branch & Process Config | process_mapping_master viewer; add/edit process assignments |
-| Data Source Mapping | ProcessRegistry viewer; shows which DB/table each process reads from |
-| Role Impersonation | Select user → issue temp token → switch view to that persona |
-| System Health | DB pool status (3 pools), API avg response times, error count last 24h |
-| Audit Configuration | manual_qa_audit parameter weights per process; audit_prompt_config viewer |
+| User Management | Table of all cm_users; inline create/edit/deactivate; password reset button |
+| Employee Management | employee_mapping_master CRUD: add/edit/deactivate employees; branch + designation fields |
+| Agent Alias Mapping | employee_source_alias CRUD: map source DB agent display names → employee_code; critical for KPI resolution |
+| Process Management | process_mapping_master CRUD: add/edit/deactivate processes; set target_cq_pct, LOB, branch, client_id, source_type |
+| Exclusion Rules | dashboard_exclusion_rules CRUD: add/remove client or campaign exclusions with reason text |
+| Coaching Management | All coaching sessions table (all processes); create/reassign/close/bulk-close; filter by status/priority/process |
+| Calibration Management | calibration_session CRUD: create sessions, add call IDs, close sessions; variance score display |
+| Audit Parameter Config | audit_prompt_config per process: view/edit QA parameter weights; which parameters map to which manual_qa_audit columns |
+| Data Source Mapping | ProcessRegistry viewer: shows source_type, DB pool, client_id per process; read-only |
+| Role Impersonation | Select any active user → issue 1-hour temp token → switch view to that persona |
+| System Health | DB pool status (3 pools), cm_users count, process count, recent error log |
+| Bulk Data Tools | Re-run employee alias resolution; rebuild process registry cache; export full audit log as CSV |
 
 ---
 
