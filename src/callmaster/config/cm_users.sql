@@ -12,9 +12,8 @@ CREATE TABLE IF NOT EXISTS cm_users (
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Seed admin user (password: Admin@2026)
--- Generate hash separately with: node -e "const b=require('bcryptjs');b.hash('Admin@2026',10).then(h=>console.log(h))"
--- Then replace the hash below
+-- Seed admin user (password: Admin@2026, change on first production login)
+-- Hash generated with: node -e "const b=require('bcryptjs');b.hash('Admin@2026',10).then(h=>console.log(h))"
 INSERT INTO cm_users (username, password_hash, full_name, role, branch_ids, process_ids)
 VALUES (
   'admin',
