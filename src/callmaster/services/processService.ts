@@ -1,6 +1,7 @@
 // src/callmaster/services/processService.ts
 import db from '../../config/db';
 import { getProcessConfig } from '../config/processRegistry';
+import { acknowledgeAlert } from '../../services/alertService';
 import {
   getFatalAnalysis,
   getScenarioBreakdown,
@@ -428,4 +429,32 @@ export async function pmInboundExplorer(
     page,
     limit: pageSize,
   });
+}
+
+// ---------------------------------------------------------------------------
+// pmRiskAlerts — unacknowledged alerts for a process (for PM acknowledge flow)
+// ---------------------------------------------------------------------------
+
+export async function pmRiskAlerts(params: PmParams) {
+  const { processName, preset, startDate, endDate } = params;
+  const { start, end } = dateRange(preset, startDate, endDate);
+  return qDb(
+    `SELECT alert_id, source_call_id, alert_severity, alert_reason, call_date,
+            agent_employee_name AS agent
+     FROM v_call_master_unified_kpi
+     WHERE process_name = ? AND call_date BETWEEN ? AND ?
+       AND alert_severity IN ('Critical','High')
+       AND (is_acknowledged IS NULL OR is_acknowledged = 0)
+     ORDER BY FIELD(alert_severity,'Critical','High'), call_date DESC
+     LIMIT 50`,
+    [processName, start, end],
+  );
+}
+
+// ---------------------------------------------------------------------------
+// pmAcknowledgeAlert
+// ---------------------------------------------------------------------------
+
+export async function pmAcknowledgeAlert(alertId: number, userId: number) {
+  return acknowledgeAlert(alertId, userId);
 }

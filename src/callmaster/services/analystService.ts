@@ -109,6 +109,27 @@ export async function myCalls(preset: Preset, employeeCode: string, page = 1, li
 }
 
 export async function myTrend(employeeCode: string) {
+  const { startDate: start, endDate: end } = presetToDateRange('MTD');
+
+  // Try snapshot first (faster), fall back to live view
+  const snapshotRows = await q<any>(
+    `SELECT snapshot_date AS call_date, avg_quality_score AS avg_score
+     FROM daily_performance_snapshot
+     WHERE agent_employee_code = ? AND snapshot_date BETWEEN ? AND ?
+     ORDER BY snapshot_date`,
+    [employeeCode, start, end],
+  );
+
+  if (snapshotRows.length > 0) {
+    return snapshotRows.map((r: any) => ({
+      call_date: r.call_date instanceof Date
+        ? r.call_date.toISOString().slice(0, 10)
+        : String(r.call_date).slice(0, 10),
+      avg_score: Number(r.avg_score ?? 0),
+    }));
+  }
+
+  // Fallback: live view (original query)
   return q(`
     SELECT call_date,
            COUNT(*) AS total_calls,

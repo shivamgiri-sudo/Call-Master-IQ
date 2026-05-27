@@ -22,4 +22,29 @@ router.post('/daily-sla',         wrap(req => bm.bmDailySla(scope(req))));
 router.post('/risk-calls',        wrap(req => bm.bmRiskCalls(preset(req), scope(req))));
 router.post('/action-items',      wrap(req => bm.bmActionItems(scope(req))));
 
+router.post('/alerts/:id/acknowledge', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.cm!;
+    const alertId = Number(req.params.id);
+    await bm.bmAcknowledgeAlert(alertId, user.user_id);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.post('/snapshot-trend', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.cm!;
+    const branchName = Array.isArray(user.branch_ids) && user.branch_ids[0] !== '*'
+      ? user.branch_ids[0]
+      : '';
+    if (!branchName) { res.json({ success: true, data: [] }); return; }
+    const data = await bm.bmSnapshotTrend({ preset: preset(req), branchName });
+    res.json({ success: true, data });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;

@@ -252,6 +252,11 @@ const _MOCK_ROUTES = {
   '/api/callmaster/pm/objection-rebuttal':    (b) => mockPmObjectionRebuttal(b.preset || 'MTD'),
   '/api/callmaster/pm/inbound-explorer':      (b) => ({ rows:[{ agent_name:'Ravi Kumar', lob_name:'Query', audit_date:'2026-05-27', call_quality_percentage:82.1, fatal_flag:0 }, { agent_name:'Meera Joshi', lob_name:'Complaint', audit_date:'2026-05-27', call_quality_percentage:68.2, fatal_flag:1 }], total:s(38500,b.preset||'MTD'), page:1 }),
   '/api/callmaster/pm/outbound-explorer':     (b) => ({ rows:[{ agent_name:'Ravi Kumar', lob_name:'Sales', audit_date:'2026-05-27', call_quality_percentage:79.4, fatal_flag:0 }], total:s(24200,b.preset||'MTD'), page:1 }),
+  '/api/callmaster/pm/risk-alerts':           (b) => ([
+    { alert_id:4, source_call_id:'IB-2891', agent:'Ravi Kumar',  alert_severity:'Critical', alert_reason:'Data theft detected',    call_date:'2026-05-27' },
+    { alert_id:5, source_call_id:'IB-3102', agent:'Rahul Singh', alert_severity:'High',     alert_reason:'Escalation failure',     call_date:'2026-05-26' },
+  ]),
+  '/api/callmaster/pm/alerts/:id/acknowledge': () => ({}),
   '/api/callmaster/bm/health':             (b) => ({ quality_score:87.4, total_calls:s(18500,b.preset||'MTD'), critical_count:s(64,b.preset||'MTD'), high_risk_count:s(128,b.preset||'MTD') }),
   '/api/callmaster/bm/process-breakdown':  (b) => ([
     { process_name:'GNC Inbound',  source_type:'Inbound',  total_calls:s(8800,b.preset||'MTD'), quality_score:91.2, critical_count:s(22,b.preset||'MTD') },
@@ -265,10 +270,11 @@ const _MOCK_ROUTES = {
   ]),
   '/api/callmaster/bm/daily-sla':          ()  => ({ total_calls:s(1400,'D1'), audited_calls:s(1240,'D1'), pending_calls:s(160,'D1'), coverage_pct:88.4 }),
   '/api/callmaster/bm/risk-calls':         (b) => ([
-    { id:'IB-2891', source_type:'Inbound',  process_name:'GNC Inbound', agent:'Ravi Kumar',   alert_severity:'Critical', call_date:'2026-05-27' },
-    { id:'OB-1045', source_type:'Outbound', process_name:'Birlanu MCN', agent:'Meera Joshi',  alert_severity:'High',     call_date:'2026-05-27' },
-    { id:'IB-3102', source_type:'Inbound',  process_name:'GNC Inbound', agent:'Rahul Singh',  alert_severity:'High',     call_date:'2026-05-26' },
+    { alert_id:1, id:'IB-2891', source_type:'Inbound',  process_name:'GNC Inbound', agent:'Ravi Kumar',   alert_severity:'Critical', call_date:'2026-05-27' },
+    { alert_id:2, id:'OB-1045', source_type:'Outbound', process_name:'Birlanu MCN', agent:'Meera Joshi',  alert_severity:'High',     call_date:'2026-05-27' },
+    { alert_id:3, id:'IB-3102', source_type:'Inbound',  process_name:'GNC Inbound', agent:'Rahul Singh',  alert_severity:'High',     call_date:'2026-05-26' },
   ]),
+  '/api/callmaster/bm/alerts/:id/acknowledge': () => ({}),
   '/api/callmaster/bm/action-items':       ()  => ([
     { id:1, item_type:'Coaching',    agent_employee_code:'EMP006', process_name:'Birlanu MCN', title:'Low CQ% — escalation failure review', priority:'High',   status:'Open', due_date:'2026-06-02' },
     { id:2, item_type:'Coaching',    agent_employee_code:'EMP005', process_name:'Birlanu MCN', title:'Compliance script adherence',          priority:'Medium', status:'Open', due_date:'2026-06-05' },
@@ -293,6 +299,20 @@ const _MOCK_ROUTES = {
     { assignment_id: 2, coaching_id: 2, coaching_title: 'Call Closure Best Practices',    defect_parameter: 'Call Closure',       coaching_body: 'Always summarize the resolution, confirm customer satisfaction, and invite feedback...', completion_status: 'viewed' },
   ]),
   '/api/callmaster/analyst/coaching-assignments/:id/status': () => ({}),
+  '/api/callmaster/tq/snapshot-trend': (b) => {
+    const days = b.preset === 'D1' ? 1 : b.preset === 'WTD' ? 7 : 30;
+    return Array.from({ length: days }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - (days - 1 - i));
+      return { call_date: d.toISOString().slice(0, 10), process_name: 'GNC Inbound', avg_score: +(88 + Math.random() * 6).toFixed(1), critical_count: Math.floor(Math.random() * 5) };
+    });
+  },
+  '/api/callmaster/bm/snapshot-trend': (b) => {
+    const days = b.preset === 'D1' ? 1 : b.preset === 'WTD' ? 7 : 30;
+    return Array.from({ length: days }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - (days - 1 - i));
+      return { call_date: d.toISOString().slice(0, 10), avg_score: +(85 + Math.random() * 8).toFixed(1), critical_count: Math.floor(Math.random() * 8) };
+    });
+  },
   '/api/callmaster/tq/coaching': () => ([
     { coaching_id: 1, coaching_title: 'Improving Objection Handling',   defect_parameter: 'Objection Handling', coaching_body: 'When a customer objects...', generated_by: 'AI' },
     { coaching_id: 2, coaching_title: 'Call Closure Best Practices',    defect_parameter: 'Call Closure',       coaching_body: 'Always summarize...',         generated_by: 'AI' },

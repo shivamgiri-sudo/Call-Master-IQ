@@ -141,4 +141,14 @@ router.post('/coaching/:id/assign', async (req: Request, res: Response): Promise
   }
 });
 
+router.post('/snapshot-trend', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { processName } = req.body;
+    const data = await quality.tqSnapshotTrend({ ...{ preset: preset(req) }, processName });
+    res.json({ success: true, data });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;

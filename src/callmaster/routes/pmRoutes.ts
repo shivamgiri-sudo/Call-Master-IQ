@@ -244,4 +244,26 @@ router.post('/inbound-explorer', async (req: Request, res: Response): Promise<vo
   }
 });
 
+router.post('/risk-alerts', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const processName = getProcessName(req, res);
+    if (!processName) return;
+    const data = await pm.pmRiskAlerts(buildParams(req));
+    res.json({ success: true, data });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/alerts/:id/acknowledge', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.cm!;
+    const alertId = Number(req.params.id);
+    await pm.pmAcknowledgeAlert(alertId, user.user_id);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;

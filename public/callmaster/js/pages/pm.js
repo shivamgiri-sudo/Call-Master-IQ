@@ -274,9 +274,13 @@ const PM_PAGES = {
 
   // ── 7. Fatal Analysis ───────────────────────────────────────────────────
   'pm-fatal-analysis': async function(preset) {
-    const r = await CALLMASTER_API.post('/api/callmaster/pm/fatal-analysis', { processName: state.processName, preset });
+    const [r, rAlerts] = await Promise.all([
+      CALLMASTER_API.post('/api/callmaster/pm/fatal-analysis', { processName: state.processName, preset }),
+      CALLMASTER_API.post('/api/callmaster/pm/risk-alerts',    { processName: state.processName, preset }),
+    ]);
     const d = r.data || {};
     const scenarios = d.fatalByScenario || [];
+    const alerts = Array.isArray(rAlerts.data) ? rAlerts.data : [];
     setTimeout(() => {
       if (scenarios.length > 0) {
         barChart(
@@ -308,7 +312,24 @@ const PM_PAGES = {
         ],
         scenarios,
         { emptyMsg: 'No fatal calls in selected period' }
-      )}`;
+      )}
+      ${alerts.length === 0 ? '' : `
+        <div class="card" style="margin-top:20px">
+          <div class="chart-title">Unacknowledged Risk Alerts</div>
+          ${table(
+            [
+              { key: 'source_call_id', label: 'Call ID',  render: v => `<span class="td-mono">${v}</span>` },
+              { key: 'agent',          label: 'Agent' },
+              { key: 'alert_severity', label: 'Severity', render: v => sevBadge(v) },
+              { key: 'alert_reason',   label: 'Reason' },
+              { key: 'call_date',      label: 'Date' },
+              { key: 'alert_id',       label: '', render: v => v
+                  ? \`<button class="badge badge-green" style="cursor:pointer;border:none;padding:4px 10px" onclick="pmAcknowledgeAlert(\${v})">Acknowledge</button>\`
+                  : '' },
+            ],
+            alerts
+          )}
+        </div>`}`;
   },
 
   // ── 8. Scenario Breakdown (Inbound) ────────────────────────────────────
@@ -664,3 +685,10 @@ const PM_PAGES = {
   },
 
 };
+
+async function pmAcknowledgeAlert(alertId) {
+  if (!confirm('Acknowledge this alert?')) return;
+  const r = await CALLMASTER_API.post('/api/callmaster/pm/alerts/' + alertId + '/acknowledge', {});
+  if (r.success) go('pm-fatal-analysis');
+  else alert('Failed: ' + (r.error || r.message || 'Unknown error'));
+}

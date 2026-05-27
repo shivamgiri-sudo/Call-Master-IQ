@@ -115,6 +115,9 @@ const BM_PAGES = {
           { key: 'agent',          label: 'Agent' },
           { key: 'alert_severity', label: 'Severity', render: v => sevBadge(v) },
           { key: 'call_date',      label: 'Date' },
+          { key: 'alert_id',       label: '', render: v => v
+              ? `<button class="badge badge-green" style="cursor:pointer;border:none;padding:4px 10px" onclick="bmAcknowledgeAlert(${v})">Acknowledge</button>`
+              : '' },
         ],
         rows,
         { emptyMsg: 'No risk calls for selected period' }
@@ -142,3 +145,10 @@ const BM_PAGES = {
   },
 
 };
+
+async function bmAcknowledgeAlert(alertId) {
+  if (!confirm('Acknowledge this alert?')) return;
+  const r = await CALLMASTER_API.post('/api/callmaster/bm/alerts/' + alertId + '/acknowledge', {});
+  if (r.success) go('bm-risk-calls');
+  else alert('Failed: ' + (r.error || r.message || 'Unknown error'));
+}

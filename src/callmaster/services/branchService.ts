@@ -1,6 +1,7 @@
 // src/callmaster/services/branchService.ts
 import db from '../../config/db';
 import { presetToDateRange, safeScopeFilter, Preset } from '../repositories/baseRepository';
+import { acknowledgeAlert } from '../../services/alertService';
 
 interface Scope { branchIds: string[]; processIds: string[]; }
 
@@ -138,4 +139,26 @@ export async function bmActionItems(scope: Scope) {
     ORDER BY FIELD(priority,'High','Medium','Low'), due_date ASC
     LIMIT 100
   `, bParams);
+}
+
+export async function bmSnapshotTrend(params: { branchName: string; preset: Preset; startDate?: string; endDate?: string }) {
+  const { branchName, preset, startDate, endDate } = params;
+  const { startDate: start, endDate: end } = presetToDateRange(preset);
+  const resolvedStart = startDate || start;
+  const resolvedEnd   = endDate   || end;
+
+  return q(
+    `SELECT snapshot_date AS call_date,
+            ROUND(AVG(avg_quality_score), 2) AS avg_score,
+            SUM(critical_calls) AS critical_count
+     FROM daily_performance_snapshot
+     WHERE branch_short_name = ? AND snapshot_date BETWEEN ? AND ?
+     GROUP BY snapshot_date
+     ORDER BY snapshot_date`,
+    [branchName, resolvedStart, resolvedEnd],
+  );
+}
+
+export async function bmAcknowledgeAlert(alertId: number, userId: number) {
+  return acknowledgeAlert(alertId, userId);
 }

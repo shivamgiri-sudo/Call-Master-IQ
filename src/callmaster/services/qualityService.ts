@@ -220,3 +220,26 @@ export async function tqAssignCoaching(params: {
 }) {
   return assignCoaching(params.coachingId, params.employeeCodes, params.assignedBy);
 }
+
+export async function tqSnapshotTrend(params: { processName?: string; preset: Preset; startDate?: string; endDate?: string }) {
+  const { processName, preset, startDate, endDate } = params;
+  const { startDate: start, endDate: end } = presetToDateRange(preset);
+  const resolvedStart = startDate || start;
+  const resolvedEnd   = endDate   || end;
+
+  const whereProcess = processName ? 'AND process_name = ?' : '';
+  const sqlParams: any[] = processName ? [resolvedStart, resolvedEnd, processName] : [resolvedStart, resolvedEnd];
+
+  return query(
+    `SELECT snapshot_date AS call_date,
+            process_name,
+            ROUND(AVG(avg_quality_score), 2) AS avg_score,
+            SUM(critical_calls) AS critical_count,
+            SUM(audited_calls) AS audited_calls
+     FROM daily_performance_snapshot
+     WHERE snapshot_date BETWEEN ? AND ? ${whereProcess}
+     GROUP BY snapshot_date, process_name
+     ORDER BY snapshot_date`,
+    sqlParams,
+  );
+}
