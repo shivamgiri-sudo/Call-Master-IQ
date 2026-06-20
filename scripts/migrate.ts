@@ -90,7 +90,16 @@ async function runMigrations(phase: number, dryRun: boolean): Promise<void> {
     return;
   }
 
-  await ensureMigrationsTable(dryRun);
+  // Dry-run: no DB connection needed — just list what would be applied
+  if (dryRun) {
+    for (const filename of files) {
+      console.log(`[dry-run] WOULD APPLY: ${filename}`);
+    }
+    console.log(`\n[migrate] Phase ${phase} dry-run complete. No database changes made.`);
+    return;
+  }
+
+  await ensureMigrationsTable(false);
   const applied = await getAppliedMigrations();
 
   for (const filename of files) {
@@ -102,17 +111,12 @@ async function runMigrations(phase: number, dryRun: boolean): Promise<void> {
 
     if (existingHash !== undefined) {
       if (existingHash !== hash) {
-        console.error(`[${dryRun ? 'dry-run' : 'migrate'}] CHECKSUM MISMATCH${dryRun ? ' - would abort' : ' - aborting'}: ${filename}`);
+        console.error(`[migrate] CHECKSUM MISMATCH - aborting: ${filename}`);
         console.error(`  stored:   ${existingHash}`);
         console.error(`  current:  ${hash}`);
         process.exit(1);
       }
-      console.log(`[${dryRun ? 'dry-run' : 'migrate'}] SKIP (already applied): ${filename}`);
-      continue;
-    }
-
-    if (dryRun) {
-      console.log(`[dry-run] WOULD APPLY: ${filename}`);
+      console.log(`[migrate] SKIP (already applied): ${filename}`);
       continue;
     }
 
@@ -143,7 +147,7 @@ async function runMigrations(phase: number, dryRun: boolean): Promise<void> {
     console.log(`[migrate] Applied: ${filename}`);
   }
 
-  console.log(`\n[migrate] Phase ${phase} ${dryRun ? 'dry-run' : 'migration'} complete.`);
+  console.log(`\n[migrate] Phase ${phase} migration complete.`);
 }
 
 async function main(): Promise<void> {
