@@ -125,4 +125,84 @@ Exit 0. Zero DB connections made.
 - ✅ 27 rows in `audit_prompt_config` — none will be modified
 - ✅ No dangerous SQL in any apply file
 - ✅ Dry-run exits 0 with all 11 files listed
-- ⏳ **Awaiting backup confirmation before live run is authorized**
+- ✅ **Backup confirmed. Live run authorized.**
+
+---
+
+## Phase 1 — Post-Migration Evidence (live run completed)
+
+### Issues encountered and resolved
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| `Access denied for shivam_user@192.168.10.42` | `.env` had `DB_PASSWORD=qwersdfg!@#hjk` unquoted — `#hjk` parsed as comment, only `qwersdfg!@` reached mysql2 | Quoted value: `DB_PASSWORD="qwersdfg!@#hjk"` in `.env` (never committed) |
+| `011_alter_audit_prompt_config.sql` failed — `ADD COLUMN IF NOT EXISTS` syntax error | `ADD COLUMN IF NOT EXISTS` is MariaDB syntax; MySQL 8.0 does not support it | Removed `IF NOT EXISTS` guard — safe because pre-migration evidence confirmed columns were absent |
+
+### Live migration terminal output
+
+```
+[migrate] Phase 1 — live run against Shivamgiri
+
+[migrate] Creating schema_migrations table...
+[migrate] schema_migrations table created
+[migrate] Applying: 001_create_call_plan_of_action.sql
+[migrate] Applied: 001_create_call_plan_of_action.sql
+...
+[migrate] Applied: 010_create_app_notification.sql
+[migrate] Applying: 011_alter_audit_prompt_config.sql
+[migrate] Applied: 011_alter_audit_prompt_config.sql
+
+[migrate] Phase 1 migration complete.
+```
+
+(Second run after 011 fix — 001–010 skipped as already applied, 011 applied cleanly. Exit 0.)
+
+### schema_migrations — 11 rows confirmed
+
+| migration_id | phase | applied_at |
+|-------------|-------|------------|
+| p1_001_create_call_plan_of_action.sql | 1 | 2026-06-20T07:22:35Z |
+| p1_002_create_call_plan_action_items.sql | 1 | 2026-06-20T07:22:35Z |
+| p1_003_create_call_plan_glide_milestones.sql | 1 | 2026-06-20T07:22:35Z |
+| p1_004_create_call_best_call_library.sql | 1 | 2026-06-20T07:22:35Z |
+| p1_005_create_daily_insight.sql | 1 | 2026-06-20T07:22:35Z |
+| p1_006_create_qa_intervention.sql | 1 | 2026-06-20T07:22:35Z |
+| p1_007_create_qa_watch_list.sql | 1 | 2026-06-20T07:22:35Z |
+| p1_008_create_sheets_sync_config.sql | 1 | 2026-06-20T07:22:35Z |
+| p1_009_create_sheets_sync_log.sql | 1 | 2026-06-20T07:22:35Z |
+| p1_010_create_app_notification.sql | 1 | 2026-06-20T07:22:35Z |
+| p1_011_alter_audit_prompt_config.sql | 1 | 2026-06-20T07:23:33Z |
+
+### audit_prompt_config — post-migration columns
+
+| COLUMN_NAME | DATA_TYPE | IS_NULLABLE |
+|-------------|-----------|-------------|
+| prompt_id | int | NO |
+| client_id | varchar | NO |
+| process_name | varchar | YES |
+| business_lob | varchar | YES |
+| source_type | enum | NO |
+| prompt_version | int | YES |
+| system_prompt | mediumtext | NO |
+| is_active | tinyint | YES |
+| created_by | varchar | YES |
+| created_at | timestamp | YES |
+| updated_by | varchar | YES |
+| updated_at | timestamp | YES |
+| **provider_code** | **varchar** | **YES** ✅ |
+| **provider_config** | **json** | **YES** ✅ |
+
+### Post-migration checks
+
+| Check | Result |
+|-------|--------|
+| `schema_migrations` created | ✅ |
+| schema_migrations rows | 11 — all 11 migrations recorded |
+| 001–010 applied | ✅ (via CREATE TABLE IF NOT EXISTS — safe no-ops) |
+| 011 applied | ✅ |
+| `provider_code` column exists | ✅ varchar, nullable |
+| `provider_config` column exists | ✅ json, nullable |
+| `audit_prompt_config` row count | 27 — unchanged ✅ |
+| `db_audit` written | No — migrate.ts only connects to `DB_NAME` (Shivamgiri) |
+| `db_external` written | No — migrate.ts only connects to `DB_NAME` (Shivamgiri) |
+| `npm run build` | Exit 0, 0 errors ✅ |
