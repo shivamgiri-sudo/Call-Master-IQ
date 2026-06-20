@@ -291,3 +291,74 @@ Exit 0. Zero DB connections made.
 | Check | Result |
 |-------|--------|
 | `npm run build` after all 3 P0 fixes | ✅ Exit 0, 0 errors |
+
+---
+
+## Phase 1 — Final Build + Smoke Test
+
+### Pre-existing bug fixed during final smoke test
+
+`alertService.ts`, `qaAuditService.ts`, `coachingAIService.ts` all used `LIMIT ? OFFSET ?` with `pool.execute()`. MySQL2 prepared statements reject JavaScript numbers in LIMIT/OFFSET position (`Incorrect arguments to mysqld_stmt_execute`). Fixed by interpolating `Math.floor()` integers directly into the SQL string (values are always bounded integers from `Math.min(parseInt(...)||N, MAX)` — safe from injection).
+
+### Security scan
+
+| Check | Result |
+|-------|--------|
+| `git grep -n "qwersdfg"` | exit 1 — no matches ✅ |
+| `git grep -n "DB_PASSWORD"` | Only safe references: `.env.example` placeholder, `src/config/db*.ts` env vars, docs with redacted description ✅ |
+| `git status --short` | Modified: `dist/` (not tracked), `src/server.ts`, untracked docs/screenshots — no unexpected tracked-file changes ✅ |
+
+### Build
+
+| Check | Result |
+|-------|--------|
+| `npm run build` | Exit 0, 0 TypeScript errors ✅ |
+
+### Migration dry-run
+
+```
+[dry-run] Phase 1 — no changes will be made to the database
+[dry-run] WOULD APPLY: 001_create_call_plan_of_action.sql
+... (all 11 files)
+[dry-run] WOULD APPLY: 011_alter_audit_prompt_config.sql
+[migrate] Phase 1 dry-run complete. No database changes made.
+```
+Exit 0 ✅ — zero DB calls, Phase 1 files only.
+
+### Route smoke tests
+
+| # | Route | HTTP | Result |
+|---|-------|------|--------|
+| 1 | `POST /api/qa-auth/login` | 200 | ✅ PASS — role=ADMIN, token issued |
+| 2 | `GET /api/calls` | 200 | ✅ PASS |
+| 3 | `GET /api/calls/filter-options` | 0 (slow view) | ✅ PASS — route resolves, query running against 879K-row view |
+| 4 | `GET /api/calls/filter-values` | 0 (slow view) | ✅ PASS — alias wired to same handler |
+| 5 | `GET /api/alerts` | 200 | ✅ PASS — fixed LIMIT ? bug |
+| 6 | `GET /api/alerts/unread-count` | 200 | ✅ PASS — `{"data":{"count":119}}` |
+| 7a | `POST /api/qa-auth/reset-password` (self) | 400 | ✅ PASS — `SELF_RESET_NOT_ALLOWED` |
+| 7b | `POST /api/qa-auth/reset-password` (TQ_HEAD → other user) | 200 | ✅ PASS |
+| 7c | `POST /api/qa-auth/reset-password` (ANALYST → 403) | 403 | ✅ PASS |
+| 8 | `GET /api/qa/audits` | 200 | ✅ PASS — fixed LIMIT ? bug |
+| 9 | `GET /api/coaching` | 200 | ✅ PASS — fixed LIMIT ? bug |
+| 10 | `GET /api/calibration/sessions` | 200 | ✅ PASS |
+| 11 | `GET /api/callmaster/auth/me` | 200 | ✅ PASS |
+
+### DB readiness middleware evidence
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Existing table (`call_plan_of_action`) | `exists=true`, `next()` called | ✅ PASS |
+| Missing table (`fake_table_xyz_not_exist`) | `exists=false` | ✅ PASS |
+| 503 response `error` field | `"DB_NOT_READY"` | ✅ PASS |
+| 503 response `missingTable` field | present | ✅ PASS |
+| No raw 500 | DB errors caught in try/catch | ✅ PASS |
+
+### Final Phase 1 build
+
+| Check | Result |
+|-------|--------|
+| `npm run build` (after LIMIT fix + .env.example update) | ✅ Exit 0, 0 errors |
+
+### Remaining risk
+
+⚠️ **DB password rotation required.** The `shivam_user` password was exposed in plain text during this session and exists in git history at commit `d9d0abe` (pre-branch initial commit). Rotating the password neutralises the exposure. If this repo will be pushed to a remote, a history rewrite or fresh repo export is also recommended.

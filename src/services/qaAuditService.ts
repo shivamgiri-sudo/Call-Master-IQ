@@ -122,7 +122,8 @@ export async function getManualAudits(filters: {
   if (filters.to) { conditions.push('call_date <= ?'); params.push(filters.to); }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  const offset = (page - 1) * limit;
+  const safeLimit = Math.floor(limit);
+  const safeOffset = Math.floor((page - 1) * limit);
 
   const [rows] = await pool.execute<any[]>(
     `SELECT audit_id, source_call_id, source_type, auditor_user_id, client_id,
@@ -130,8 +131,8 @@ export async function getManualAudits(filters: {
             manual_total_score, manual_max_score, manual_quality_percentage,
             audit_status, created_at
      FROM manual_qa_audit ${where}
-     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-    [...params, limit, offset]
+     ORDER BY created_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+    params
   );
   const [cnt] = await pool.execute<any[]>(`SELECT COUNT(*) AS total FROM manual_qa_audit ${where}`, params);
 

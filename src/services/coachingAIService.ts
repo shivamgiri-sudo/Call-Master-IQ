@@ -103,14 +103,15 @@ export async function getCoachingList(filters: {
   params.push(filters.active_status !== undefined ? filters.active_status : 1);
 
   const where = `WHERE ${conditions.join(' AND ')}`;
-  const offset = (page - 1) * limit;
+  const safeLimit = Math.floor(limit);
+  const safeOffset = Math.floor((page - 1) * limit);
 
   const [rows] = await pool.execute<any[]>(
     `SELECT coaching_id, client_id, process_name, business_lob, source_type,
             defect_parameter, coaching_title, generated_by, created_at
      FROM coaching_content ${where}
-     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-    [...params, limit, offset]
+     ORDER BY created_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+    params
   );
   const [cnt] = await pool.execute<any[]>(`SELECT COUNT(*) AS total FROM coaching_content ${where}`, params);
 
@@ -136,15 +137,16 @@ export async function assignCoaching(coaching_id: number, employee_codes: string
 }
 
 export async function getMyAssignments(employee_code: string, page = 1, limit = 20) {
-  const offset = (page - 1) * limit;
+  const safeLimit = Math.floor(limit);
+  const safeOffset = Math.floor((page - 1) * limit);
   const [rows] = await pool.execute<any[]>(
     `SELECT ca.assignment_id, ca.completion_status, ca.assigned_at, ca.completed_at,
             cc.coaching_id, cc.coaching_title, cc.defect_parameter, cc.business_lob, cc.coaching_body
      FROM coaching_assignment ca
      JOIN coaching_content cc ON cc.coaching_id = ca.coaching_id
      WHERE ca.employee_code = ?
-     ORDER BY ca.assigned_at DESC LIMIT ? OFFSET ?`,
-    [employee_code, limit, offset]
+     ORDER BY ca.assigned_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+    [employee_code]
   );
   const [cnt] = await pool.execute<any[]>(
     'SELECT COUNT(*) AS total FROM coaching_assignment WHERE employee_code = ?', [employee_code]

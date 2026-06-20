@@ -24,11 +24,12 @@ export async function getAlerts(scope: ScopeFilter, filters: {
   if (to) { conditions.push('created_at <= ?'); params.push(to); }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  const offset = (page - 1) * limit;
+  const safeLimit = Math.floor(limit);
+  const safeOffset = Math.floor((page - 1) * limit);
 
   const [rows] = await pool.execute<any[]>(
-    `SELECT * FROM quality_alert ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-    [...params, limit, offset]
+    `SELECT * FROM quality_alert ${where} ORDER BY created_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+    params
   );
   const [cnt] = await pool.execute<any[]>(`SELECT COUNT(*) AS total FROM quality_alert ${where}`, params);
 
@@ -62,7 +63,8 @@ export async function getCriticalCalls(scope: ScopeFilter, filters: {
   if (to) { conditions.push('call_date <= ?'); params.push(to); }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
-  const offset = (page - 1) * limit;
+  const safeLimit = Math.floor(limit);
+  const safeOffset = Math.floor((page - 1) * limit);
 
   const [rows] = await pool.execute<any[]>(
     `SELECT source_call_id, source_type, client_id, process_name, branch_short_name,
@@ -70,8 +72,8 @@ export async function getCriticalCalls(scope: ScopeFilter, filters: {
             call_datetime, quality_score, quality_band, alert_severity,
             sensitive_word, overall_fraud_risk_score, fraud_potentiality_percentage
      FROM v_call_master_unified ${where}
-     ORDER BY call_datetime DESC LIMIT ? OFFSET ?`,
-    [...params, limit, offset]
+     ORDER BY call_datetime DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+    params
   );
   const [cnt] = await pool.execute<any[]>(
     `SELECT COUNT(*) AS total FROM v_call_master_unified ${where}`, params
