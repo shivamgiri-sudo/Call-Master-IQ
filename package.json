@@ -10,7 +10,9 @@
     "migrate:phase1": "ts-node -P scripts/tsconfig.json -r dotenv/config scripts/migrate.ts --phase=1",
     "migrate:phase1:dry-run": "ts-node -P scripts/tsconfig.json -r dotenv/config scripts/migrate.ts --phase=1 --dry-run",
     "migrate:phase4": "ts-node -P scripts/tsconfig.json -r dotenv/config scripts/migrate.ts --phase=4",
-    "migrate:phase4:dry-run": "ts-node -P scripts/tsconfig.json -r dotenv/config scripts/migrate.ts --phase=4 --dry-run"
+    "migrate:phase4:dry-run": "ts-node -P scripts/tsconfig.json -r dotenv/config scripts/migrate.ts --phase=4 --dry-run",
+    "phase2:describe": "ts-node -P scripts/tsconfig.json scripts/phase2-describe.ts",
+    "phase2:smoke": "ts-node -P scripts/tsconfig.json scripts/phase2-smoke.ts"
   },
   "keywords": [],
   "author": "",
