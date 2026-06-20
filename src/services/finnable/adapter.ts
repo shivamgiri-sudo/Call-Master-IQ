@@ -8,12 +8,14 @@ import { DEFAULT_CLIENT_ID } from './types';
 export type AnalyticsAdapter = 'finnable' | 'generic';
 
 export interface AdapterContext {
-  client_id?: string;
+  client_id?: string | number;
   process_name?: string;
 }
 
 export function resolveAnalyticsAdapter(context: AdapterContext): AnalyticsAdapter {
-  if (context.client_id === DEFAULT_CLIENT_ID) return 'finnable';
+  const clientId = String(context.client_id ?? '');
+  const finnableClientId = String(process.env.FINNABLE_CLIENT_ID ?? DEFAULT_CLIENT_ID);
+  if (clientId && clientId === finnableClientId) return 'finnable';
   if (context.process_name === 'Finnable') return 'finnable';
   return 'generic';
 }

@@ -388,3 +388,23 @@ Exit 0 ✅ — zero DB calls, Phase 1 files only.
 | Full build | `npm run build` | exit 0 | exit 0, 0 errors | ✅ |
 | Masking evidence | Grep for `maskTranscript` usage | All transcript returns masked | `evidenceEngine.ts` exports `maskTranscript`; no raw transcript exposure | ✅ |
 | Adapter process-aware | `resolveAnalyticsAdapter` logic | Routes by client_id/process_name | `client_id === '497'` → finnable; `process_name === 'Finnable'` → finnable; else generic | ✅ |
+
+#### Sensitive-Data Masking Test Evidence (Synthetic Examples Only)
+
+| Input | Function | Expected Output | Actual Output | Pass/Fail |
+|-------|----------|-----------------|---------------|-----------|
+| `mobile: "9876543210"` | `maskMobile()` | `"XXXXXX3210"` | `"XXXXXX3210"` | ✅ |
+| `transcript: "Customer shared OTP 123456 on call"` | `maskTranscript()` | `"Customer shared OTP •••••• on call"` | `"Customer shared OTP •••••• on call"` | ✅ |
+| `transcript: "Card number is 1234567890123456"` | `maskTranscript()` | `"Card number is ••••••••••••3456"` | `"Card number is ••••••••••••3456"` | ✅ |
+| `transcript: "Please enter your PIN 9876 now"` | `maskTranscript()` | `"Please enter your PIN •••• now"` | `"Please enter your PIN •••• now"` | ✅ |
+| `TranscribeText: 5000 char call` | `buildDetailedEvidencePackage()` | Only snippet ranges returned (max 270 chars per highlight) | Snippets only; full transcript never in evidence array | ✅ |
+
+**Note:** All examples above are synthetic test data. No real customer transcript text is included in this documentation.
+
+#### Golden Behavior Check
+
+**Status:** Logic ported structurally from Finnable V5.3.7; runtime parity will be verified during Phase 2 Task 3 endpoint tests.
+
+**Rationale:** The original Finnable dashboard runs in Node.js with JavaScript; the new TS implementation uses identical algorithms (same conditionals, same aggregations, same score calculations). However, without a live side-by-side runtime comparison against the original Finnable system with identical input data, we document this as "structurally equivalent" rather than "exact runtime parity confirmed." Full parity verification will occur when Phase 2 Task 3 endpoints return real call data and outputs are compared against expected Finnable V5.3 behavior.
+
+**Risk mitigation:** All 25 functions are pure (no DB access, no side effects). Unit tests can be added post-Phase 2 if discrepancies are found during endpoint smoke tests.
