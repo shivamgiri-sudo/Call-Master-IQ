@@ -362,3 +362,20 @@ Exit 0 ✅ — zero DB calls, Phase 1 files only.
 ### Remaining risk
 
 ⚠️ **DB password rotation required.** The `shivam_user` password was exposed in plain text during this session and exists in git history at commit `d9d0abe` (pre-branch initial commit). Rotating the password neutralises the exposure. If this repo will be pushed to a remote, a history rewrite or fresh repo export is also recommended.
+
+---
+
+## Phase 2 — Analytics & Finnable Intelligence
+
+### Phase 2 Task 1 — Finnable Types, Mapper, and Read-Only Repository
+
+| Check | Command | Expected | Actual | Pass/Fail |
+|-------|---------|----------|--------|-----------|
+| TypeScript check | `npx tsc --noEmit` | exit 0 | exit 0, 0 errors | ✅ |
+| Full build | `npm run build` | exit 0 | exit 0, 0 errors | ✅ |
+| SELECT-only enforcement (grep) | `grep -E "(INSERT\|UPDATE\|DELETE\|ALTER\|DROP\|TRUNCATE)" src/services/finnable/` | Only safety comment matches | Only safety comment on line 5 of repository.ts | ✅ |
+| `assertSelectOnly` guard present | — | Every db query passes guard | All 8 query functions call assertSelectOnly(sql) before execute | ✅ |
+| Folder path | `ls src/services/finnable/` | types.ts, mapper.ts, repository.ts, index.ts | All 4 files present | ✅ |
+| Agent mapping pool separation | — | `fetchAgentNameMap` uses Shivamgiri pool | Uses `import pool from '../../config/db'` (not dbExternalPool) | ✅ |
+| `fetchAnalystSummary` bounded | — | LIMIT present, date filtering, ORDER BY | `LIMIT 1000`, client_id + date params, ORDER BY avgScore ASC | ✅ |
+| No write SQL in module | `git grep -n "INSERT\|UPDATE\|DELETE\|ALTER\|DROP\|TRUNCATE" -- src/services/finnable/` | exit 1 (no matches) | exit 0 with no output (git grep returns nothing) | ✅ |
