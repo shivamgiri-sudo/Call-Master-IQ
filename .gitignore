@@ -14,3 +14,7 @@ npm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Ad-hoc investigation scripts (may contain credentials)
+verify_data*.js
+folder/
