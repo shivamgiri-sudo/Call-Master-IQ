@@ -5,6 +5,18 @@
 import { Request, Response } from 'express';
 import * as service from '../services/analyticsExtensionService';
 
+function handleError(err: any, res: Response) {
+  if (err.message === 'DATE_RANGE_EXCEEDED') {
+    res.status(400).json({ success: false, code: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
+  } else if (err.message === 'INVALID_DATE_FORMAT') {
+    res.status(400).json({ success: false, code: 'INVALID_DATE_FORMAT', message: 'Invalid date format' });
+  } else if (err.message === 'INVALID_DATE_RANGE') {
+    res.status(400).json({ success: false, code: 'INVALID_DATE_RANGE', message: 'Invalid date range (from must be before to)' });
+  } else {
+    res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: err.message });
+  }
+}
+
 export async function getSplitKPIs(req: Request, res: Response): Promise<void> {
   try {
     const result = await service.getSplitKPIs({
@@ -19,13 +31,7 @@ export async function getSplitKPIs(req: Request, res: Response): Promise<void> {
     });
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else if (err.message === 'INVALID_DATE_FORMAT' || err.message === 'INVALID_DATE_RANGE') {
-      res.status(400).json({ success: false, error: err.message, message: 'Invalid date format or range' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -40,11 +46,7 @@ export async function getSalesIntelligence(req: Request, res: Response): Promise
     });
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -59,11 +61,7 @@ export async function getTNIHeatmap(req: Request, res: Response): Promise<void> 
     });
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -80,11 +78,7 @@ export async function getRiskQueue(req: Request, res: Response): Promise<void> {
     });
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -99,11 +93,7 @@ export async function getSalesFunnel(req: Request, res: Response): Promise<void>
     });
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -118,11 +108,7 @@ export async function getLeakageReport(req: Request, res: Response): Promise<voi
     });
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -137,11 +123,7 @@ export async function getComplianceSummary(req: Request, res: Response): Promise
     });
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -156,11 +138,7 @@ export async function getJourneySummary(req: Request, res: Response): Promise<vo
     });
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -175,11 +153,7 @@ export async function getQualityDistribution(req: Request, res: Response): Promi
     });
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -196,11 +170,7 @@ export async function getTopBottomAgents(req: Request, res: Response): Promise<v
     });
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -208,7 +178,7 @@ export async function getDrilldown(req: Request, res: Response): Promise<void> {
   try {
     const { dimension, value } = req.body;
     if (!dimension || !value) {
-      res.status(400).json({ success: false, error: 'MISSING_PARAMETERS', message: 'dimension and value are required' });
+      res.status(400).json({ success: false, code: 'MISSING_PARAMETERS', message: 'dimension and value are required' });
       return;
     }
 
@@ -227,11 +197,7 @@ export async function getDrilldown(req: Request, res: Response): Promise<void> {
     );
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -246,7 +212,7 @@ export async function getSensitiveWords(req: Request, res: Response): Promise<vo
     });
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    handleError(err, res);
   }
 }
 
@@ -261,7 +227,7 @@ export async function getRiskByProcess(req: Request, res: Response): Promise<voi
     });
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    handleError(err, res);
   }
 }
 
@@ -276,11 +242,7 @@ export async function getAnalystDailyTrend(req: Request, res: Response): Promise
     });
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'DATE_RANGE_EXCEEDED') {
-      res.status(400).json({ success: false, error: 'DATE_RANGE_EXCEEDED', message: 'Date range exceeds maximum allowed days' });
-    } else {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    handleError(err, res);
   }
 }
 
@@ -295,6 +257,6 @@ export async function getParameterTrend(req: Request, res: Response): Promise<vo
     });
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    handleError(err, res);
   }
 }

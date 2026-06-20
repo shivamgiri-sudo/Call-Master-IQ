@@ -409,7 +409,9 @@ Exit 0 ✅ — zero DB calls, Phase 1 files only.
 
 **Risk mitigation:** All 25 functions are pure (no DB access, no side effects). Unit tests can be added post-Phase 2 if discrepancies are found during endpoint smoke tests.
 
-### Phase 2 Task 3 — Analytics Extension Routes
+### Phase 2 Task 3 — Analytics Extension Routes (PARTIAL — awaiting runtime verification)
+
+**Status:** PARTIAL / INCOMPLETE — Code structure complete, runtime tests pending.
 
 | Check | Command | Expected | Actual | Pass/Fail |
 |-------|---------|----------|--------|-----------|
@@ -463,4 +465,15 @@ Exit 0 ✅ — zero DB calls, Phase 1 files only.
 
 - Default range: last 30 days if `from`/`to` not provided
 - Max range: `ANALYTICS_MAX_DATE_RANGE_DAYS` (default 90, overridable via env)
-- Error response: `{ "success": false, "error": "DATE_RANGE_EXCEEDED", "message": "..." }` with 400 status
+- Error response: `{ "success": false, "code": "DATE_RANGE_EXCEEDED", "message": "..." }` with 400 status (✅ corrected from `error` to `code`)
+
+#### Outstanding Blockers (Task 3 PARTIAL)
+
+| Blocker | Status | Resolution |
+|---------|--------|------------|
+| Runtime smoke tests | ⏸️ Pending | Awaiting local script execution via `npm run phase2:smoke` |
+| Column verification | ⏸️ Pending | Awaiting local script execution via `npm run phase2:describe` |
+| Cache evidence | ⏸️ Pending | Requires runtime tests |
+| Read-only runtime proof | ⏸️ Pending | Requires runtime tests |
+| 3 stub endpoints | ⏸️ Incomplete | `/sensitive-words`, `/risk-by-process`, `/parameter-trend` not implemented |
+| Generic adapter expansion | ⏸️ Incomplete | 11/15 endpoints return `supported: false` for non-Finnable clients |
