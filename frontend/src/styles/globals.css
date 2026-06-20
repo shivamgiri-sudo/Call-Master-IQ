@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base resets and dark-theme defaults ─────────────────────────────────── */
+:root {
+  color-scheme: dark;
+  --base: #06080c;
+  --panel: #0b1018;
+  --elevated: #111726;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background-color: var(--base);
+  color: #f4f6fb;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-feature-settings: 'cv11', 'ss01', 'ss02';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-image:
+    radial-gradient(60rem 40rem at 80% -10%, rgba(91, 155, 255, 0.10), transparent 60%),
+    radial-gradient(50rem 36rem at -10% 110%, rgba(157, 123, 255, 0.08), transparent 65%),
+    linear-gradient(180deg, #06080c 0%, #07090f 100%);
+  background-attachment: fixed;
+}
+
+/* ── Reusable component classes ─────────────────────────────────────────── */
+@layer components {
+  .glass {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 32px rgba(0, 0, 0, 0.32);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 16px;
+  }
+  .glass-strong {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 24px 64px rgba(0, 0, 0, 0.48);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 18px;
+  }
+  .card-hover {
+    transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 20px 48px rgba(0, 0, 0, 0.50);
+  }
+  .focus-ring {
+    @apply outline-none ring-0 ring-offset-0 focus-visible:ring-2 focus-visible:ring-blue/50 focus-visible:ring-offset-2 focus-visible:ring-offset-base;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line-default bg-elevated/60 px-2.5 py-1 text-xs font-medium;
+  }
+  .pill-good {
+    @apply border-good/30 bg-good/10 text-good;
+  }
+  .pill-warn {
+    @apply border-warn/30 bg-warn/10 text-warn;
+  }
+  .pill-bad {
+    @apply border-bad/30 bg-bad/10 text-bad;
+  }
+  .pill-info {
+    @apply border-blue/30 bg-blue/10 text-blue;
+  }
+  .pill-violet {
+    @apply border-violet/30 bg-violet/10 text-violet;
+  }
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04) 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.04) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+    border-radius: 8px;
+  }
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+  background-clip: padding-box;
+}
+
+/* ── Recharts overrides for dark theme ───────────────────────────────────── */
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: rgba(255, 255, 255, 0.10);
+}
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(255, 255, 255, 0.04);
+}
+.recharts-text {
+  fill: rgba(244, 246, 251, 0.62);
+  font-size: 11px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.recharts-tooltip-wrapper {
+  outline: none;
+}
+.recharts-default-tooltip {
+  background-color: rgba(11, 16, 24, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.50) !important;
+}
+.recharts-legend-item-text {
+  color: rgba(244, 246, 251, 0.78) !important;
+  font-size: 12px !important;
+}

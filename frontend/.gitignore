@@ -1,0 +1,27 @@
+# Local env (never commit real credentials)
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+dist-ssr/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# Deps
+node_modules/
