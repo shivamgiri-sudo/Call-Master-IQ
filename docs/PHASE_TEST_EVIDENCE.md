@@ -14,3 +14,5 @@ This file records build results, smoke test outputs, and exit-criteria evidence 
 | Migration runner build | `npm run build` | exit 0 | exit 0, 0 errors | ✅ |
 | Phase 1 dry-run (empty dir) | `npm run migrate:phase1:dry-run` | exit 0, "No SQL files found" | exit 0, "No SQL files found in phase 1 directory." | ✅ |
 | Phase 4 dry-run (empty dir) | `npm run migrate:phase4:dry-run` | exit 0, "No SQL files found" | exit 0, "No SQL files found in phase 4 directory." | ✅ |
+| Phase 1 dry-run (11 SQL files) | `npm run migrate:phase1:dry-run` | exit 0, all 11 files listed, zero DB calls | exit 0, all 11 WOULD APPLY lines printed, no pool.execute issued (verified against unreachable host 192.168.10.42) | ✅ |
+| Phase 4 dry-run (empty dir, re-verify) | `npm run migrate:phase4:dry-run` | exit 0, "No SQL files found" | exit 0, confirmed no regression after dry-run fix | ✅ |
