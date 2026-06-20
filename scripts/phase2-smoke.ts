@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const BASE_URL = process.env.SMOKE_BASE_URL || 'http://localhost:5050';
-const ADMIN_EMAIL = process.env.SMOKE_ADMIN_EMAIL;
+const ADMIN_LOGIN = process.env.SMOKE_ADMIN_LOGIN_ID || process.env.SMOKE_ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD;
 
 interface TestResult {
@@ -26,12 +26,12 @@ interface TestResult {
   error?: string;
 }
 
-async function login(email: string, password: string): Promise<string> {
-  console.log(`\nLogging in as: ${email}`);
+async function login(loginId: string, password: string): Promise<string> {
+  console.log(`\nLogging in as: ${loginId}`);
   const response = await fetch(`${BASE_URL}/api/qa-auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ login_id: email, password }),
+    body: JSON.stringify({ login_id: loginId, password }),
   });
 
   if (!response.ok) {
@@ -106,15 +106,15 @@ async function testEndpoint(
 }
 
 async function main() {
-  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
-    console.error('❌ Missing SMOKE_ADMIN_EMAIL or SMOKE_ADMIN_PASSWORD in .env');
+  if (!ADMIN_LOGIN || !ADMIN_PASSWORD) {
+    console.error('❌ Missing SMOKE_ADMIN_LOGIN_ID/SMOKE_ADMIN_EMAIL or SMOKE_ADMIN_PASSWORD in .env');
     process.exit(1);
   }
 
   console.log('Phase 2 Runtime Smoke Tests');
   console.log(`Base URL: ${BASE_URL}`);
 
-  const token = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
+  const token = await login(ADMIN_LOGIN, ADMIN_PASSWORD);
 
   const results: TestResult[] = [];
 
@@ -189,7 +189,7 @@ async function main() {
   let output = `# Phase 2 Runtime Smoke Test Results\n\n`;
   output += `**Generated:** ${new Date().toISOString()}\n`;
   output += `**Base URL:** ${BASE_URL}\n`;
-  output += `**Test User:** ${ADMIN_EMAIL}\n`;
+  output += `**Test User:** ${ADMIN_LOGIN}\n`;
   output += `**Date Range:** ${from} to ${to}\n\n`;
   output += `---\n\n`;
 
