@@ -196,9 +196,12 @@ async function main() {
   console.log('Phase 2 Runtime Smoke Tests');
   console.log(`Base URL: ${BASE_URL}`);
 
-  const from = '2024-01-01';
-  const to = '2024-12-31';
-  const finnableParams = { client_id: '497', from, to };
+  // Use 30-day range within 90-day limit (max range for analytics)
+  const to = new Date();
+  const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const fromStr = from.toISOString().split('T')[0];
+  const toStr = to.toISOString().split('T')[0];
+  const finnableParams = { client_id: '497', from: fromStr, to: toStr };
 
   const ENDPOINTS: Array<{ method: string; path: string; params?: Record<string, string>; body?: any }> = [
     { method: 'GET',  path: '/api/analytics/split-kpis',          params: finnableParams },
@@ -207,7 +210,7 @@ async function main() {
     { method: 'GET',  path: '/api/analytics/leakage-report',       params: finnableParams },
     { method: 'GET',  path: '/api/analytics/risk-queue',           params: { ...finnableParams, page: '1', limit: '10' } },
     { method: 'GET',  path: '/api/analytics/tni-heatmap',          params: finnableParams },
-    { method: 'POST', path: '/api/analytics/drilldown',            body: { client_id: '497', from, to, dimension: 'risk', value: 'High Priority Risk Trigger', page: 1, limit: 10 } },
+    { method: 'POST', path: '/api/analytics/drilldown',            body: { client_id: '497', from: fromStr, to: toStr, dimension: 'risk', value: 'High Priority Risk Trigger', page: 1, limit: 10 } },
     { method: 'GET',  path: '/api/analytics/compliance-summary',   params: finnableParams },
     { method: 'GET',  path: '/api/analytics/journey-summary',      params: finnableParams },
     { method: 'GET',  path: '/api/analytics/quality-distribution', params: finnableParams },
@@ -223,12 +226,12 @@ async function main() {
   if (!token) {
     console.error('\n❌ Auth preflight FAILED — all endpoint tests skipped');
     const results = ENDPOINTS.map(e => notRunResult(e.path, e.method));
-    writeReport(results, false, from, to);
+    writeReport(results, false, fromStr, toStr);
     process.exitCode = 1;
     return;
   }
 
-  console.log(`\nTesting 15 endpoints with client_id=497, from=${from}, to=${to}\n`);
+  console.log(`\nTesting 15 endpoints with client_id=497, from=${fromStr}, to=${toStr}\n`);
 
   const results: TestResult[] = [];
   for (let i = 0; i < ENDPOINTS.length; i++) {
@@ -237,7 +240,7 @@ async function main() {
     results.push(await testEndpoint(e.method, e.path, token, e.params, e.body));
   }
 
-  writeReport(results, true, from, to);
+  writeReport(results, true, fromStr, toStr);
 
   const failCount = results.filter(r => typeof r.status === 'number' && r.status !== 200).length;
   const errorCount = results.filter(r => r.error).length;
