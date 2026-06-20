@@ -14,6 +14,7 @@ import {
   tniEngine,
   trendEngine,
   riskEngine,
+  sensitiveWordsEngine,
   DEFAULT_CLIENT_ID,
   FINNABLE_CACHE_TTL_MS,
   FinnableFilters,
@@ -270,9 +271,30 @@ export async function getRiskQueue(filter: AnalyticsExtensionFilter) {
   return buildResponseEnvelope({ supported: false, reason: 'Risk queue requires Finnable adapter' }, { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to });
 }
 
-// Placeholder stubs for remaining endpoints (to be expanded)
+// ─── /sales-funnel — implemented for Finnable, generic supported:false ────────
+//
+// Returns a stage-by-stage funnel (Opportunities → Pitched → Strong Pitch →
+// Progressed → Disbursal) with conversion rates. The generic view does not
+// expose the per-stage parameters needed for a real funnel, so we return
+// supported:false for generic.
 export async function getSalesFunnel(filter: AnalyticsExtensionFilter) {
-  return getSalesIntelligence(filter);
+  const started = Date.now();
+  const range = validateDateRange(filter.from, filter.to);
+  const adapter = resolveAnalyticsAdapter({ client_id: filter.client_id, process_name: filter.process_name });
+
+  if (adapter === 'finnable') {
+    const finnableData = await fetchFinnableData(filter, range);
+    const funnel = analyticsEngine.buildSalesFunnel(finnableData.enrichedRows);
+    return buildResponseEnvelope(
+      funnel,
+      { source: 'finnable', cacheHit: finnableData.cacheHit, queryMs: finnableData.queryMs, totalMs: Date.now() - started, from: range.from, to: range.to }
+    );
+  }
+
+  return buildResponseEnvelope(
+    { supported: false, reason: 'FUNNEL_COLUMNS_NOT_AVAILABLE' },
+    { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to }
+  );
 }
 
 export async function getLeakageReport(filter: AnalyticsExtensionFilter) {
@@ -379,17 +401,103 @@ export async function getDrilldown(filter: AnalyticsExtensionFilter, dimension: 
   return buildResponseEnvelope({ supported: false }, { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to });
 }
 
-// Remaining stubs for approved Phase 2 endpoints (not yet implemented)
+// ─── /sensitive-words — implemented for Finnable, honest generic fallback ────
+//
+// Source columns (db_external.CallDetails):
+//   SensitiveWordUsed, SensitiveWordContext,
+//   TopNegativeWordsByAgent, TopNegativeWordsByCustomer
+// The unified KPI view does NOT expose these columns, so the generic adapter
+// returns supported:false with reason SENSITIVE_WORD_COLUMNS_NOT_AVAILABLE.
 export async function getSensitiveWords(filter: AnalyticsExtensionFilter) {
   const started = Date.now();
   const range = validateDateRange(filter.from, filter.to);
-  return buildResponseEnvelope({ supported: false, reason: 'Endpoint not yet implemented in Phase 2' }, { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to });
+  const adapter = resolveAnalyticsAdapter({ client_id: filter.client_id, process_name: filter.process_name });
+
+  if (adapter === 'finnable') {
+    const clientId = String(filter.client_id || DEFAULT_CLIENT_ID);
+    const queryStarted = Date.now();
+    const rows = await finnableRepo.fetchSensitiveWordRows({
+      clientId,
+      fromDate: range.from,
+      toDate: range.to,
+    });
+    const queryMs = Date.now() - queryStarted;
+
+    // Resolve agent names via Shivamgiri pool (read-only lookup)
+    const agentNameMap = await finnableRepo.fetchAgentNameMap();
+    const resolvedRows = rows.map((r: any) => ({
+      ...r,
+      AgentName: agentNameMap[r.AgentName] || r.AgentName,
+    }));
+
+    const summary = sensitiveWordsEngine.buildSensitiveWordsSummary(resolvedRows);
+
+    return buildResponseEnvelope(
+      summary,
+      { source: 'finnable', queryMs, totalMs: Date.now() - started, from: range.from, to: range.to }
+    );
+  }
+
+  return buildResponseEnvelope(
+    { supported: false, reason: 'SENSITIVE_WORD_COLUMNS_NOT_AVAILABLE' },
+    { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to }
+  );
 }
 
 export async function getRiskByProcess(filter: AnalyticsExtensionFilter) {
   const started = Date.now();
   const range = validateDateRange(filter.from, filter.to);
-  return buildResponseEnvelope({ supported: false, reason: 'Endpoint not yet implemented in Phase 2' }, { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to });
+  const adapter = resolveAnalyticsAdapter({ client_id: filter.client_id, process_name: filter.process_name });
+
+  if (adapter === 'finnable') {
+    const finnableData = await fetchFinnableData(filter, range);
+    const rows = analyticsEngine.buildRiskByProcess(finnableData.enrichedRows);
+    return buildResponseEnvelope(
+      { dimension: 'category', rows },
+      { source: 'finnable', cacheHit: finnableData.cacheHit, queryMs: finnableData.queryMs, totalMs: Date.now() - started, from: range.from, to: range.to }
+    );
+  }
+
+  // Generic path — real GROUP BY against v_call_master_unified_kpi.
+  // Verified columns (src/config/phase2_tables.sql:121-140):
+  //   process_name, is_critical_call, alert_severity, quality_band, call_date
+  const { clause, params } = buildScopeWhereClause(filter.scope);
+  const conditions = [clause !== '1=1' ? clause : ''];
+  const queryParams = clause !== '1=1' ? [...params] : [];
+
+  if (filter.client_id) { conditions.push('client_id = ?'); queryParams.push(filter.client_id); }
+  if (filter.process_name) { conditions.push('process_name = ?'); queryParams.push(filter.process_name); }
+  if (filter.business_lob) { conditions.push('business_lob = ?'); queryParams.push(filter.business_lob); }
+  if (filter.branch_short_name) { conditions.push('branch_short_name = ?'); queryParams.push(filter.branch_short_name); }
+  if (filter.source_type) { conditions.push('source_type = ?'); queryParams.push(filter.source_type); }
+  conditions.push('call_date >= ?'); queryParams.push(range.from);
+  conditions.push('call_date <= ?'); queryParams.push(range.to);
+
+  const where = `WHERE ${conditions.filter(c => c).join(' AND ')}`;
+
+  const queryStarted = Date.now();
+  const [rows] = await pool.execute<any[]>(
+    `SELECT
+       process_name AS process,
+       COUNT(*) AS totalCalls,
+       SUM(CASE WHEN is_critical_call = 1 THEN 1 ELSE 0 END) AS criticalCalls,
+       SUM(CASE WHEN alert_severity = 'High' THEN 1 ELSE 0 END) AS highRiskCalls,
+       SUM(CASE WHEN alert_severity = 'Medium' THEN 1 ELSE 0 END) AS mediumRiskCalls,
+       SUM(CASE WHEN alert_severity = 'Normal' OR alert_severity IS NULL THEN 1 ELSE 0 END) AS safeCalls,
+       ROUND(AVG(quality_score), 2) AS averageQuality,
+       SUBSTRING_INDEX(GROUP_CONCAT(quality_band ORDER BY quality_band), ',', 1) AS topQualityBand
+     FROM v_call_master_unified_kpi ${where}
+     GROUP BY process_name
+     ORDER BY criticalCalls DESC, totalCalls DESC
+     LIMIT 200`,
+    queryParams
+  );
+  const queryMs = Date.now() - queryStarted;
+
+  return buildResponseEnvelope(
+    { dimension: 'process_name', rows },
+    { source: 'generic', queryMs, totalMs: Date.now() - started, from: range.from, to: range.to }
+  );
 }
 
 export async function getAnalystDailyTrend(filter: AnalyticsExtensionFilter) {
@@ -413,5 +521,23 @@ export async function getAnalystDailyTrend(filter: AnalyticsExtensionFilter) {
 export async function getParameterTrend(filter: AnalyticsExtensionFilter) {
   const started = Date.now();
   const range = validateDateRange(filter.from, filter.to);
-  return buildResponseEnvelope({ supported: false, reason: 'Endpoint not yet implemented in Phase 2' }, { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to });
+  const adapter = resolveAnalyticsAdapter({ client_id: filter.client_id, process_name: filter.process_name });
+
+  if (adapter === 'finnable') {
+    const finnableData = await fetchFinnableData(filter, range);
+    const trend = analyticsEngine.buildParameterTrend(finnableData.enrichedRows);
+    return buildResponseEnvelope(
+      trend,
+      { source: 'finnable', cacheHit: finnableData.cacheHit, queryMs: finnableData.queryMs, totalMs: Date.now() - started, from: range.from, to: range.to }
+    );
+  }
+
+  // Generic: v_call_master_unified_kpi has no parameter-level columns
+  // (verified via src/config/phase2_tables.sql:121-140 — only quality_score,
+  //  total_score, max_score, quality_band, is_critical_call, alert_severity).
+  // Honest response: supported:false with explicit reason.
+  return buildResponseEnvelope(
+    { supported: false, reason: 'GENERIC_PARAMETER_COLUMNS_NOT_AVAILABLE' },
+    { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to }
+  );
 }

@@ -3,6 +3,16 @@
  * Tests all 15 Phase 2 analytics extension endpoints.
  * Does NOT log JWT, password, or full Authorization header.
  *
+ * Data-status taxonomy (post Phase 2 Task 3 closure):
+ *   NON_EMPTY      — endpoint returned real data (counts, lists, structures)
+ *   SUPPORTED_FALSE— endpoint returned { data: { supported: false, reason: '...' } }
+ *                    This is an honest contract for endpoints whose underlying
+ *                    views don't expose required columns. Treated as a separate
+ *                    status, NOT collapsed into "non-empty".
+ *   EMPTY          — endpoint returned an empty data object/array
+ *   SKIPPED        — auth preflight failed; this endpoint was not exercised
+ *   ERROR          — endpoint returned HTTP 5xx or network failure
+ *
  * Login contract (qaAuthController.ts):
  *   POST /api/qa-auth/login { login_id, password }
  *   Response: { success: true, token, user: {...} }  ← token at top level, not data.token
@@ -16,19 +26,33 @@ const ADMIN_LOGIN = process.env.SMOKE_ADMIN_LOGIN_ID || process.env.SMOKE_ADMIN_
 const ADMIN_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD;
 const BEARER_TOKEN = process.env.SMOKE_BEARER_TOKEN;
 
+type DataStatus = 'NON_EMPTY' | 'SUPPORTED_FALSE' | 'EMPTY' | 'SKIPPED' | 'ERROR';
+
 interface TestResult {
   endpoint: string;
   method: string;
   status: number | 'NOT_RUN_AUTH_FAILED';
+  httpOk: boolean;                  // true iff 2xx
+  dataStatus: DataStatus;
   success?: boolean;
   code?: string;
   message?: string;
+  supportedReason?: string;         // present iff dataStatus === 'SUPPORTED_FALSE'
   metaSource?: string;
   metaFrom?: string;
   metaTo?: string;
   metaTotalMs?: number;
-  dataEmpty: boolean;
   error?: string;
+}
+
+function classifyDataStatus(data: any, httpOk: boolean): DataStatus {
+  if (!httpOk) return 'ERROR';
+  if (!data || typeof data !== 'object') return 'EMPTY';
+  if (data.supported === false) return 'SUPPORTED_FALSE';
+  // Empty object/array
+  if (Array.isArray(data)) return data.length === 0 ? 'EMPTY' : 'NON_EMPTY';
+  if (Object.keys(data).length === 0) return 'EMPTY';
+  return 'NON_EMPTY';
 }
 
 async function acquireToken(): Promise<string | null> {
@@ -119,26 +143,34 @@ async function testEndpoint(
       data = { rawText: text };
     }
 
+    const httpOk = response.status >= 200 && response.status < 300;
+    // data lives under data.data per standard envelope
+    const dataPayload = data && typeof data === 'object' ? data.data : undefined;
+    const dataStatus = classifyDataStatus(dataPayload, httpOk);
+
     return {
       endpoint: endpointPath,
       method,
       status: response.status,
+      httpOk,
+      dataStatus,
       success: data.success,
       code: data.code,
       message: data.message,
+      supportedReason: dataStatus === 'SUPPORTED_FALSE' ? dataPayload?.reason : undefined,
       metaSource: data.meta?.source,
       metaFrom: data.meta?.from,
       metaTo: data.meta?.to,
       metaTotalMs: data.meta?.totalMs,
-      dataEmpty: !data.data || (typeof data.data === 'object' && Object.keys(data.data).length === 0),
     };
   } catch (err: any) {
     return {
       endpoint: endpointPath,
       method,
       status: 0,
+      httpOk: false,
+      dataStatus: 'ERROR',
       error: err.message,
-      dataEmpty: true,
     };
   }
 }
@@ -148,8 +180,19 @@ function notRunResult(endpointPath: string, method: string): TestResult {
     endpoint: endpointPath,
     method,
     status: 'NOT_RUN_AUTH_FAILED',
-    dataEmpty: true,
+    httpOk: false,
+    dataStatus: 'SKIPPED',
   };
+}
+
+function statusEmoji(s: DataStatus): string {
+  switch (s) {
+    case 'NON_EMPTY':       return '✅ Non-empty';
+    case 'SUPPORTED_FALSE': return '⚠ Supported-false';
+    case 'EMPTY':           return '❌ Empty';
+    case 'SKIPPED':         return '⏭ Skipped';
+    case 'ERROR':           return '🔥 Error';
+  }
 }
 
 function writeReport(results: TestResult[], authPassed: boolean, from: string, to: string) {
@@ -159,30 +202,49 @@ function writeReport(results: TestResult[], authPassed: boolean, from: string, t
   output += `**Test User:** ${ADMIN_LOGIN || '(SMOKE_BEARER_TOKEN)'}\n`;
   output += `**Date Range:** ${from} to ${to}\n`;
   output += `**Auth Preflight:** ${authPassed ? '✅ PASS' : '❌ FAIL'}\n\n`;
+  output += `**Data-Status Taxonomy:** NON_EMPTY = real data returned · SUPPORTED_FALSE = \\`{supported:false, reason:'…'}\\` (honest contract) · EMPTY = empty payload · SKIPPED = auth failed · ERROR = 5xx/network\n\n`;
   output += `---\n\n`;
 
+  // Summary stats
+  const counts: Record<DataStatus, number> = {
+    NON_EMPTY: 0, SUPPORTED_FALSE: 0, EMPTY: 0, SKIPPED: 0, ERROR: 0,
+  };
+  results.forEach(r => { counts[r.dataStatus]++; });
+  const liveCount = counts.NON_EMPTY;
+  const honestCount = counts.SUPPORTED_FALSE;
+  const problemCount = counts.EMPTY + counts.ERROR + counts.SKIPPED;
+
   output += `## Summary\n\n`;
-  output += `| # | Endpoint | Method | Status | Success | Source | Data | Total ms |\n`;
-  output += `|---|----------|--------|--------|---------|--------|------|----------|\n`;
+  output += `| Metric | Count |\n|---|---|\n`;
+  output += `| Total endpoints tested | ${results.length} |\n`;
+  output += `| ✅ Real data (LIVE) | ${liveCount} |\n`;
+  output += `| ⚠ Supported-false (honest fallback) | ${honestCount} |\n`;
+  output += `| ❌ Empty payload | ${counts.EMPTY} |\n`;
+  output += `| 🔥 Error | ${counts.ERROR} |\n`;
+  output += `| ⏭ Skipped (auth failed) | ${counts.SKIPPED} |\n`;
+  output += `| **Problem total** | **${problemCount}** |\n\n`;
+
+  output += `## Per-Endpoint Results\n\n`;
+  output += `| # | Endpoint | Method | HTTP | Success | Source | Data Status | Total ms |\n`;
+  output += `|---|----------|--------|------|---------|--------|-------------|----------|\n`;
   results.forEach((r, i) => {
-    const dataStatus = r.status === 'NOT_RUN_AUTH_FAILED'
-      ? '⏭ Skipped'
-      : r.dataEmpty ? '❌ Empty' : '✅ Non-empty';
-    output += `| ${i + 1} | ${r.endpoint} | ${r.method} | ${r.status} | ${r.success ?? 'N/A'} | ${r.metaSource ?? 'N/A'} | ${dataStatus} | ${r.metaTotalMs ?? 'N/A'} |\n`;
+    output += `| ${i + 1} | ${r.endpoint} | ${r.method} | ${r.status} | ${r.success ?? 'N/A'} | ${r.metaSource ?? 'N/A'} | ${statusEmoji(r.dataStatus)} | ${r.metaTotalMs ?? 'N/A'} |\n`;
   });
 
   output += `\n## Detailed Results\n\n`;
   results.forEach((r, i) => {
     output += `### ${i + 1}. ${r.method} ${r.endpoint}\n\n`;
     output += `- **Status:** ${r.status}\n`;
-    output += `- **Success:** ${r.success ?? 'N/A'}\n`;
+    output += `- **HTTP OK:** ${r.httpOk ? '✅' : '❌'}\n`;
+    output += `- **Data Status:** ${r.dataStatus}\n`;
+    if (r.success !== undefined) output += `- **Success:** ${r.success}\n`;
     if (r.code) output += `- **Code:** ${r.code}\n`;
     if (r.message) output += `- **Message:** ${r.message}\n`;
+    if (r.supportedReason) output += `- **Supported-False Reason:** ${r.supportedReason}\n`;
     if (r.metaSource) output += `- **Source:** ${r.metaSource}\n`;
     if (r.metaFrom) output += `- **From:** ${r.metaFrom}\n`;
     if (r.metaTo) output += `- **To:** ${r.metaTo}\n`;
     if (r.metaTotalMs) output += `- **Total ms:** ${r.metaTotalMs}\n`;
-    output += `- **Data empty:** ${r.dataEmpty}\n`;
     if (r.error) output += `- **Error:** ${r.error}\n`;
     output += `\n`;
   });
@@ -190,6 +252,13 @@ function writeReport(results: TestResult[], authPassed: boolean, from: string, t
   const outputPath = path.join(process.cwd(), 'docs', 'phase2-runtime-smoke-results.md');
   fs.writeFileSync(outputPath, output, 'utf8');
   console.log(`\n✅ Results written to: ${outputPath}`);
+
+  // Exit code policy: only ERROR or non-200 HTTP causes non-zero exit.
+  // SUPPORTED_FALSE is an explicit, contract-compliant response.
+  const nonZero = results.some(r =>
+    r.dataStatus === 'ERROR' || (typeof r.status === 'number' && !r.httpOk && r.status !== 0)
+  );
+  if (nonZero) process.exitCode = 1;
 }
 
 async function main() {
@@ -243,7 +312,7 @@ async function main() {
   writeReport(results, true, fromStr, toStr);
 
   const failCount = results.filter(r => typeof r.status === 'number' && r.status !== 200).length;
-  const errorCount = results.filter(r => r.error).length;
+  const errorCount = results.filter(r => r.dataStatus === 'ERROR').length;
   console.log(`\nResults: ${results.length} tests, ${failCount} non-200, ${errorCount} errors`);
 }
 

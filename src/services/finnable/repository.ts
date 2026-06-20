@@ -61,8 +61,15 @@ const RISK_COLUMNS = [
   'Feedback_Category', 'ConsumptionType', 'AreaForImprovement', 'Feedback', 'MobileNo',
 ] as const;
 
+const SENSITIVE_WORD_COLUMNS = [
+  'id', 'AgentName', 'CallDate', 'SensitiveWordUsed', 'SensitiveWordContext',
+  'TopNegativeWordsByAgent', 'TopNegativeWordsByCustomer',
+  'Feedback_Category', 'AreaForImprovement', 'MobileNo',
+] as const;
+
 const TABLE = 'CallDetails';
 const MAX_ANALYST_GROUPS = 1000;
+const MAX_SENSITIVE_ROWS = 5000;
 
 function cols(columns: readonly string[]): string {
   return columns.map(c => `\`${c}\``).join(', ');
@@ -136,6 +143,44 @@ export async function fetchRiskRows(opts: RepositoryQueryOptions): Promise<any[]
 
   if (opts.fromDate) { sql += ' AND `CallDate` >= ?'; params.push(opts.fromDate); }
   if (opts.toDate) { sql += ' AND `CallDate` <= ?'; params.push(opts.toDate); }
+
+  sql += ` ORDER BY \`CallDate\` DESC LIMIT ${limit}`;
+
+  assertSelectOnly(sql);
+  const [rows] = await dbExternalPool.execute<any[]>(sql, params);
+  return rows;
+}
+
+// ─── Sensitive word analytics (db_external, read-only, guarded) ─────────────
+//
+// Returns rows where any sensitive-word signal is non-empty. The engine layer
+// is responsible for tokenising pipe-delimited multi-word values and aggregating
+// counts; this function only guarantees a safe, bounded SELECT.
+
+export async function fetchSensitiveWordRows(opts: RepositoryQueryOptions): Promise<any[]> {
+  const limit = safeLimit(opts.limit, MAX_SENSITIVE_ROWS);
+  const params: string[] = [String(opts.clientId)];
+  // Filter rows where any of the sensitive-word signals is non-empty.
+  // `OR` with TRIM/NOT IN ('no','n/a','none') to exclude empty/placeholder values.
+  let sql = `
+    SELECT ${cols(SENSITIVE_WORD_COLUMNS)}
+    FROM \`${TABLE}\`
+    WHERE \`client_id\` = ?
+      AND (
+        (SensitiveWordUsed IS NOT NULL
+          AND TRIM(SensitiveWordUsed) <> ''
+          AND LOWER(TRIM(SensitiveWordUsed)) NOT IN ('no','n/a','na','none','not available'))
+        OR (TopNegativeWordsByAgent IS NOT NULL
+          AND TRIM(TopNegativeWordsByAgent) <> ''
+          AND LOWER(TRIM(TopNegativeWordsByAgent)) NOT IN ('no','n/a','na','none','not available'))
+        OR (TopNegativeWordsByCustomer IS NOT NULL
+          AND TRIM(TopNegativeWordsByCustomer) <> ''
+          AND LOWER(TRIM(TopNegativeWordsByCustomer)) NOT IN ('no','n/a','na','none','not available'))
+      )`;
+
+  if (opts.fromDate) { sql += ' AND `CallDate` >= ?'; params.push(opts.fromDate); }
+  if (opts.toDate)   { sql += ' AND `CallDate` <= ?'; params.push(opts.toDate); }
+  if (opts.agentName) { sql += ' AND `AgentName` = ?'; params.push(opts.agentName); }
 
   sql += ` ORDER BY \`CallDate\` DESC LIMIT ${limit}`;
 

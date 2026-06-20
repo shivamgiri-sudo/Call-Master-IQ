@@ -356,3 +356,235 @@ export function drilldownTitle(dimension: string, value: string): string {
   };
   return (prefixes[dimension] || 'Evidence') + ': ' + value;
 }
+
+// ─── /risk-by-process — Finnable aggregation ────────────────────────────────
+//
+// Finnable rows do not carry a process_name column. The closest semantic
+// dimension in the source data is `Category` (loan/segment type). This
+// function groups enriched rows by Category and aggregates the risk signals
+// (riskBucket, qualityBand, is_critical_call). The generic adapter path is
+// implemented in analyticsExtensionService.ts using v_call_master_unified_kpi
+// and the real `process_name` column.
+
+export interface RiskByProcessRow {
+  process: string;        // Category for Finnable; process_name for generic
+  totalCalls: number;
+  criticalCalls: number;  // is_critical_call === 1 OR riskBucket starts with "High"
+  highRiskCalls: number;  // riskBucket === "High Priority Risk Trigger"
+  mediumRiskCalls: number;
+  safeCalls: number;
+  averageQuality: number | null;
+  topRiskBucket: string;
+}
+
+export interface SalesFunnelStage {
+  stage: string;
+  count: number;
+  conversionRateFromPrevious: number | null;
+}
+
+export interface SalesFunnelOutput {
+  source: 'finnable';
+  stages: SalesFunnelStage[];
+  totalOpportunities: number;
+}
+
+export function buildRiskByProcess(rows: EnrichedCallRow[]): RiskByProcessRow[] {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const byProcess: Record<string, EnrichedCallRow[]> = {};
+
+  for (const row of safeRows) {
+    const process = String(row.Category || 'Uncategorised').trim() || 'Uncategorised';
+    if (!byProcess[process]) byProcess[process] = [];
+    byProcess[process].push(row);
+  }
+
+  return Object.entries(byProcess)
+    .map(([process, recs]) => {
+      const scores = recs.filter(r => r.score !== null).map(r => r.score as number);
+      const avgScore = scores.length > 0
+        ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+        : null;
+
+      const highRisk = recs.filter(r => r.riskBucket === 'High Priority Risk Trigger').length;
+      const mediumRisk = recs.filter(r => r.riskBucket === 'Medium Transparency / Sensitive Flag').length;
+      const safe = recs.filter(r => r.riskBucket === 'Safe / Guided Self-Entry' || r.riskBucket === 'No Risk Flag').length;
+      const critical = recs.filter(r => r.riskBucket === 'High Priority Risk Trigger' || r.riskBucket === 'Medium Transparency / Sensitive Flag').length;
+
+      // Top risk bucket by count
+      const bucketCounts: Record<string, number> = {};
+      recs.forEach(r => { bucketCounts[r.riskBucket] = (bucketCounts[r.riskBucket] || 0) + 1; });
+      const topRiskBucket = Object.entries(bucketCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'No Risk Flag';
+
+      return {
+        process,
+        totalCalls: recs.length,
+        criticalCalls: critical,
+        highRiskCalls: highRisk,
+        mediumRiskCalls: mediumRisk,
+        safeCalls: safe,
+        averageQuality: avgScore,
+        topRiskBucket,
+      };
+    })
+    .sort((a, b) => b.criticalCalls - a.criticalCalls || b.totalCalls - a.totalCalls);
+}
+
+// ─── /sales-funnel — Finnable conversion stages ──────────────────────────────
+//
+// Builds a stage-by-stage funnel from opportunities → pitch → strong pitch
+// → progressed → disbursal. Returns the stage counts and conversion rate
+// from the previous stage (null for the first stage).
+export function buildSalesFunnel(rows: EnrichedCallRow[]): SalesFunnelOutput {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const opportunities = safeRows.filter(r => r.opportunity);
+  const totalOpportunities = opportunities.length;
+
+  const stageDefs = [
+    { stage: 'Sales / Mixed Opportunities', filter: (_r: EnrichedCallRow) => true },
+    { stage: 'Pitch Attempted',             filter: (r: EnrichedCallRow) => r.PrepaidPitch === '1' },
+    { stage: 'Strong Pitch',                 filter: (r: EnrichedCallRow) => r.pitchStrength === 'Strong' },
+    { stage: 'Customer Progressed',          filter: (r: EnrichedCallRow) => r.progressed },
+    { stage: 'Disbursal Signal',             filter: (r: EnrichedCallRow) => r.disbursal },
+  ];
+
+  let prevCount: number | null = null;
+  const stages: SalesFunnelStage[] = stageDefs.map(def => {
+    const count = opportunities.filter(def.filter).length;
+    const conversion = prevCount && prevCount > 0
+      ? Math.round((count / prevCount) * 1000) / 1000
+      : null;
+    prevCount = count;
+    return { stage: def.stage, count, conversionRateFromPrevious: conversion };
+  });
+
+  return { source: 'finnable', stages, totalOpportunities };
+}
+
+// ─── /parameter-trend — Finnable day-by-day parameter compliance ─────────────
+//
+// The Finnable source (db_external.CallDetails) carries these parameter-shaped
+// columns: PrepaidPitch, ObjectionHandling, UpsellingEfforts, Call_Closing,
+// Order_Consent, Further_Assistance, Pricing_and_Discount_Structure,
+// Snapmint_Pitch. We define a "passed" predicate per parameter (e.g.
+// PrepaidPitch='1', ObjectionHandling='1', UpsellingEfforts='Strong', etc.)
+// and aggregate per day. The generic path returns supported:false because
+// v_call_master_unified_kpi has no parameter columns.
+
+export interface ParameterDayPoint {
+  date: string;
+  total: number;
+  passed: number;
+  passRate: number | null;
+}
+
+export interface ParameterTrend {
+  parameter: string;
+  passedValues: string[];
+  series: ParameterDayPoint[];
+}
+
+export interface ParameterTrendOutput {
+  source: 'finnable';
+  parameters: string[];
+  trend: ParameterTrend[];
+  daysCovered: number;
+}
+
+interface ParameterDef {
+  name: string;
+  // Return the value of this parameter for a row, or null if absent/None.
+  read: (row: EnrichedCallRow) => string | null;
+  // True if the value counts as a "pass" for this parameter.
+  isPassed: (value: string) => boolean;
+}
+
+const FINNABLE_PARAMETER_DEFS: ParameterDef[] = [
+  {
+    name: 'PrepaidPitch',
+    read: r => r.PrepaidPitch === '1' ? '1' : (r.PrepaidPitch === '0' ? '0' : null),
+    isPassed: v => v === '1',
+  },
+  {
+    name: 'ObjectionHandling',
+    read: r => r.ObjectionHandling === '1' ? '1' : (r.ObjectionHandling === '0' ? '0' : null),
+    isPassed: v => v === '1',
+  },
+  {
+    name: 'UpsellingEfforts',
+    read: r => r.UpsellingEfforts && r.UpsellingEfforts !== 'None' ? r.UpsellingEfforts : null,
+    isPassed: v => v === 'Strong',
+  },
+  {
+    name: 'Call_Closing',
+    read: r => r.Call_Closing && r.Call_Closing !== 'None' ? r.Call_Closing : null,
+    isPassed: v => !['Weak Closing', 'Missing Closing', 'Misleading Closing', 'Call Dropped'].includes(v),
+  },
+  {
+    name: 'Order_Consent',
+    read: r => r.Order_Consent === '1' ? '1' : (r.Order_Consent === '0' ? '0' : null),
+    isPassed: v => v === '1',
+  },
+  {
+    name: 'Further_Assistance',
+    read: r => r.Further_Assistance && r.Further_Assistance !== 'None' ? r.Further_Assistance : null,
+    isPassed: v => !['Missing', 'Not Offered'].includes(v),
+  },
+  {
+    name: 'Pricing_and_Discount_Structure',
+    read: r => r.Pricing_and_Discount_Structure && r.Pricing_and_Discount_Structure !== 'None' ? r.Pricing_and_Discount_Structure : null,
+    isPassed: v => ['Correct', 'Clear', 'Disclosed'].includes(v),
+  },
+  {
+    name: 'Snapmint_Pitch',
+    read: r => r.Snapmint_Pitch && r.Snapmint_Pitch !== 'None' ? r.Snapmint_Pitch : null,
+    isPassed: v => !['High', 'Critical'].includes(v),
+  },
+];
+
+export function buildParameterTrend(rows: EnrichedCallRow[]): ParameterTrendOutput {
+  const safeRows = Array.isArray(rows) ? rows : [];
+
+  // Bucket rows by date (yyyy-mm-dd prefix)
+  const byDate: Record<string, EnrichedCallRow[]> = {};
+  for (const row of safeRows) {
+    const date = String(row.CallDate || '').slice(0, 10);
+    if (!date || date === 'null') continue;
+    if (!byDate[date]) byDate[date] = [];
+    byDate[date].push(row);
+  }
+  const days = Object.keys(byDate).sort();
+
+  const trend: ParameterTrend[] = FINNABLE_PARAMETER_DEFS.map(def => {
+    const series: ParameterDayPoint[] = days.map(date => {
+      const dayRows = byDate[date] || [];
+      let total = 0;
+      let passed = 0;
+      for (const row of dayRows) {
+        const v = def.read(row);
+        if (v === null) continue;
+        total++;
+        if (def.isPassed(v)) passed++;
+      }
+      return {
+        date,
+        total,
+        passed,
+        passRate: total > 0 ? Math.round((passed / total) * 1000) / 1000 : null,
+      };
+    });
+
+    return {
+      parameter: def.name,
+      passedValues: [],
+      series,
+    };
+  });
+
+  return {
+    source: 'finnable',
+    parameters: trend.map(t => t.parameter),
+    trend,
+    daysCovered: days.length,
+  };
+}

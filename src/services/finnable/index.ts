@@ -6,4 +6,5 @@ export * as tniEngine from './tniEngine';
 export * as trendEngine from './trendEngine';
 export * as riskEngine from './riskEngine';
 export * as evidenceEngine from './evidenceEngine';
+export * as sensitiveWordsEngine from './sensitiveWordsEngine';
 export { resolveAnalyticsAdapter, type AnalyticsAdapter, type AdapterContext } from './adapter';

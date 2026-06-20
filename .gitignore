@@ -1,7 +1,14 @@
-# Environment — never commit real credentials
+# ── Environment — never commit real credentials ──────────────────────────────
+# Top-level .env files
 .env
 .env.local
 .env.*.local
+
+# Any nested .env at any depth (covers folder/path/.env and any future leaks)
+**/.env
+**/.env.*
+!**/.env.example
+!**/example.env
 
 # Build output
 dist/
@@ -18,3 +25,14 @@ Thumbs.db
 # Ad-hoc investigation scripts (may contain credentials)
 verify_data*.js
 folder/
+
+# Local scratch files
+secret-scan-output.txt
+*.local.json
+.idea/
+.vscode/
+
+# Common backup artifacts
+*.bak
+*.swp
+*.tmp
