@@ -206,3 +206,36 @@ Exit 0. Zero DB connections made.
 | `db_audit` written | No — migrate.ts only connects to `DB_NAME` (Shivamgiri) |
 | `db_external` written | No — migrate.ts only connects to `DB_NAME` (Shivamgiri) |
 | `npm run build` | Exit 0, 0 errors ✅ |
+
+---
+
+## Phase 1 — requireTables / requireTable Middleware
+
+**File:** `src/middleware/dbReadiness.ts`
+
+### Behaviour spec
+
+| Scenario | Response |
+|----------|----------|
+| Table exists | `next()` — request passes through |
+| Table missing | `503 DB_NOT_READY` with `missingTable` field |
+| Table exists but empty | `next()` — empty table is not an error |
+| DB query throws | `503 DB_NOT_READY` with generic message (no raw error exposed) |
+| Positive result within 5 min | Cache hit — no DB query issued |
+| Negative result (table missing) | Never cached — re-checked on every request |
+
+### Smoke tests (live DB — 192.168.10.6/Shivamgiri)
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `call_plan_of_action` (exists) | `true` | ✅ PASS |
+| `call_plan_of_action` (second call — cache hit) | `true`, no DB query | ✅ PASS |
+| `table_that_does_not_exist_xyz` | `false`, no throw | ✅ PASS |
+| `qa_watch_list` (exists, empty) | `true` — empty table passes | ✅ PASS |
+| `schema_migrations` (exists) | `true` | ✅ PASS |
+
+### Build
+
+| Check | Result |
+|-------|--------|
+| `npm run build` | Exit 0, 0 errors ✅ |
