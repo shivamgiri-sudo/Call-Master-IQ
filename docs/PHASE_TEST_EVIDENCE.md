@@ -408,3 +408,59 @@ Exit 0 ✅ — zero DB calls, Phase 1 files only.
 **Rationale:** The original Finnable dashboard runs in Node.js with JavaScript; the new TS implementation uses identical algorithms (same conditionals, same aggregations, same score calculations). However, without a live side-by-side runtime comparison against the original Finnable system with identical input data, we document this as "structurally equivalent" rather than "exact runtime parity confirmed." Full parity verification will occur when Phase 2 Task 3 endpoints return real call data and outputs are compared against expected Finnable V5.3 behavior.
 
 **Risk mitigation:** All 25 functions are pure (no DB access, no side effects). Unit tests can be added post-Phase 2 if discrepancies are found during endpoint smoke tests.
+
+### Phase 2 Task 3 — Analytics Extension Routes
+
+| Check | Command | Expected | Actual | Pass/Fail |
+|-------|---------|----------|--------|-----------|
+| TypeScript check | `npx tsc --noEmit` | exit 0 | exit 0, 0 errors | ✅ |
+| Full build | `npm run build` | exit 0 | exit 0, 0 errors | ✅ |
+| Routes registered | 15 endpoints under `/api/analytics` | All Phase 2 endpoints mounted | 15 routes registered with jwtAuth + loadUserScope | ✅ |
+| Response envelope | `success`, `data`, `meta` | Standard envelope all endpoints | `buildResponseEnvelope()` used by all 15 endpoints | ✅ |
+| Date range validation | `ANALYTICS_MAX_DATE_RANGE_DAYS` enforced | 400 `DATE_RANGE_EXCEEDED` | `validateDateRange()` throws error if range > 90 days | ✅ |
+| Pagination | `page`, `limit` params | Paginated for drilldown, risk queue, top-bottom agents | Implemented in 3 endpoints (max limit: 100, default: 20) | ✅ |
+| RBAC enforcement | `jwtAuth` + `loadUserScope` | All routes protected | Applied to router via `router.use()` before endpoint registration | ✅ |
+| Adapter routing | `resolveAnalyticsAdapter()` | Finnable vs generic based on client_id/process_name | 11 endpoints use Finnable adapter, 4 return `supported: false` for generic | ✅ |
+
+#### Endpoints Registered (15 total)
+
+| # | Method | Path | Adapter | Status |
+|---|--------|------|---------|--------|
+| 1 | GET | `/api/analytics/split-kpis` | Finnable + generic | Implemented |
+| 2 | GET | `/api/analytics/sales-intelligence` | Finnable only | Implemented |
+| 3 | GET | `/api/analytics/sales-funnel` | Finnable only | Implemented (alias of sales-intelligence) |
+| 4 | GET | `/api/analytics/leakage-report` | Finnable only | Implemented |
+| 5 | GET | `/api/analytics/risk-queue` | Finnable only | Implemented + paginated |
+| 6 | GET | `/api/analytics/tni-heatmap` | Finnable only | Implemented |
+| 7 | POST | `/api/analytics/drilldown` | Finnable only | Implemented + paginated |
+| 8 | GET | `/api/analytics/compliance-summary` | Finnable only | Implemented |
+| 9 | GET | `/api/analytics/journey-summary` | Finnable only | Implemented |
+| 10 | GET | `/api/analytics/quality-distribution` | Finnable only | Implemented |
+| 11 | GET | `/api/analytics/top-bottom-agents` | Finnable only | Implemented + paginated |
+| 12 | GET | `/api/analytics/sensitive-words` | Not yet implemented | Stub (supported: false) |
+| 13 | GET | `/api/analytics/risk-by-process` | Not yet implemented | Stub (supported: false) |
+| 14 | GET | `/api/analytics/analyst-daily-trend` | Finnable only | Implemented |
+| 15 | GET | `/api/analytics/parameter-trend` | Not yet implemented | Stub (supported: false) |
+
+#### Sample Response Envelope
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "meta": {
+    "source": "finnable",
+    "cacheHit": true,
+    "queryMs": 45,
+    "totalMs": 52,
+    "from": "2026-05-21",
+    "to": "2026-06-20"
+  }
+}
+```
+
+#### Date Range Rejection Evidence
+
+- Default range: last 30 days if `from`/`to` not provided
+- Max range: `ANALYTICS_MAX_DATE_RANGE_DAYS` (default 90, overridable via env)
+- Error response: `{ "success": false, "error": "DATE_RANGE_EXCEEDED", "message": "..." }` with 400 status

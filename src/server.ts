@@ -12,6 +12,7 @@ import documentRoutes from './routes/documents';
 import qaAuthRoutes from './routes/qaAuth';
 import callRoutes from './routes/calls';
 import analyticsRoutes from './routes/analytics';
+import analyticsExtensionRoutes from './routes/analyticsExtension';
 import alertRoutes from './routes/alerts';
 import qaRoutes from './routes/qa';
 import coachingRoutes from './routes/coaching';
@@ -78,6 +79,7 @@ app.use('/api/qa-auth', qaAuthRoutes);
 // LexicalSpark QA Platform routes
 app.use('/api/calls', callRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/analytics', analyticsExtensionRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/qa', qaRoutes);
 app.use('/api/coaching', coachingRoutes);
