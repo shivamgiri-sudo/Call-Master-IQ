@@ -239,3 +239,55 @@ Exit 0. Zero DB connections made.
 | Check | Result |
 |-------|--------|
 | `npm run build` | Exit 0, 0 errors ✅ |
+
+---
+
+## Phase 1 — P0 Fixes
+
+### P0 Fix 1: GET /api/calls/filter-values alias
+
+**File changed:** `src/routes/calls.ts`
+- Added `router.get('/filter-values', getFilterOptions)` — single alias line
+- Original `/filter-options` route unchanged
+
+| Test | Result |
+|------|--------|
+| `GET /api/calls/filter-values` — route registered, not 404 | ✅ PASS (query is slow — 879K row view, but route resolves) |
+| `GET /api/calls/filter-options` — original route unchanged | ✅ PASS |
+| `npm run build` | ✅ Exit 0 |
+
+### P0 Fix 2: GET /api/alerts/unread-count
+
+**Files changed:** `src/controllers/alertsController.ts`, `src/routes/alerts.ts`
+- New `getUnreadCount` handler: queries `quality_alert WHERE is_acknowledged = 0` with scope filter applied
+- Returns `{ success: true, data: { count: N } }`
+- Schema verified: `is_acknowledged TINYINT DEFAULT 0` confirmed in `quality_alert`
+
+| Test | Result |
+|------|--------|
+| `GET /api/alerts/unread-count` (ADMIN scope) | ✅ HTTP 200, `{"success":true,"data":{"count":119}}` |
+| Response shape: `success` + `data.count` as number | ✅ PASS |
+
+### P0 Fix 3: POST /api/qa-auth/reset-password
+
+**Files changed:** `src/controllers/qaAuthController.ts`, `src/routes/qaAuth.ts`
+- New `resetPasswordByLoginId` function: accepts `login_id` in body
+- Route: `POST /api/qa-auth/reset-password` guarded by `requireRole('ADMIN', 'TQ_HEAD')`
+- Self-reset blocked: returns `400 SELF_RESET_NOT_ALLOWED`
+- Uses existing `generateTempPassword()` + `bcrypt.hash(pwd, 10)` pattern
+- Sets `force_password_change = 1`, resets `account_locked = 0` and `failed_login_attempts = 0`
+- Logs action to console (audit_log wiring in Phase 4)
+- Does NOT return `temp_password` or any hash in response
+
+| Test | Result |
+|------|--------|
+| QA role → `POST /api/qa-auth/reset-password` | ✅ HTTP 403 |
+| ADMIN self-reset (`login_id = requester's login_id`) | ✅ HTTP 400, `error: SELF_RESET_NOT_ALLOWED` |
+| ADMIN resets another user | ✅ HTTP 200, `success: true`, no `password_hash` in response |
+| Console log emitted: `[qa-auth] Password reset by shivamshivgiri (ADMIN) for user qa_user` | ✅ |
+
+### Final build
+
+| Check | Result |
+|-------|--------|
+| `npm run build` after all 3 P0 fixes | ✅ Exit 0, 0 errors |

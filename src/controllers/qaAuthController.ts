@@ -115,6 +115,49 @@ export async function changePassword(req: Request, res: Response): Promise<void>
   res.json({ success: true, message: 'Password changed successfully' });
 }
 
+export async function resetPasswordByLoginId(req: Request, res: Response): Promise<void> {
+  if (!req.user) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
+
+  const { login_id } = req.body;
+  if (!login_id) {
+    res.status(400).json({ success: false, message: 'login_id is required' });
+    return;
+  }
+
+  // Self-reset through admin endpoint is not allowed
+  if (login_id === req.user.login_id) {
+    res.status(400).json({ success: false, error: 'SELF_RESET_NOT_ALLOWED', message: 'Use /change-password to change your own password.' });
+    return;
+  }
+
+  const [rows] = await pool.execute<any[]>(
+    'SELECT user_id, login_id FROM user_master WHERE login_id = ? AND active_status = 1 LIMIT 1',
+    [login_id]
+  );
+  if (rows.length === 0) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  const target = rows[0];
+  const tempPassword = generateTempPassword();
+  const newHash = await bcrypt.hash(tempPassword, 10);
+
+  await pool.execute(
+    `UPDATE user_master
+     SET password_hash = ?, force_password_change = 1, account_locked = 0, failed_login_attempts = 0
+     WHERE user_id = ?`,
+    [newHash, target.user_id]
+  );
+
+  console.log(`[qa-auth] Password reset by ${req.user.login_id} (${req.user.role_code}) for user ${login_id}`);
+
+  res.json({
+    success: true,
+    message: `Password reset for ${login_id}. User must change password on next login.`,
+  });
+}
+
 export async function resetUserPassword(req: Request, res: Response): Promise<void> {
   if (!req.user) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 

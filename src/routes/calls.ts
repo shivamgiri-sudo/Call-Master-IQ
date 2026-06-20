@@ -16,6 +16,7 @@ router.use(jwtAuth, loadUserScope);
 // Phase-2 routes
 router.get('/', listCalls);
 router.get('/filter-options', getFilterOptions);
+router.get('/filter-values', getFilterOptions); // alias — frontend uses /filter-values
 router.get('/:sourceType/:callId/insight', getInsight);
 router.post('/:sourceType/:callId/generate-insight', generateInsight);
 router.get('/:sourceType/:callId', callDetail);
