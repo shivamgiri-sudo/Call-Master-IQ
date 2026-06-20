@@ -379,3 +379,12 @@ Exit 0 ✅ — zero DB calls, Phase 1 files only.
 | Agent mapping pool separation | — | `fetchAgentNameMap` uses Shivamgiri pool | Uses `import pool from '../../config/db'` (not dbExternalPool) | ✅ |
 | `fetchAnalystSummary` bounded | — | LIMIT present, date filtering, ORDER BY | `LIMIT 1000`, client_id + date params, ORDER BY avgScore ASC | ✅ |
 | No write SQL in module | `git grep -n "INSERT\|UPDATE\|DELETE\|ALTER\|DROP\|TRUNCATE" -- src/services/finnable/` | exit 1 (no matches) | exit 0 with no output (git grep returns nothing) | ✅ |
+
+### Phase 2 Task 2 — Finnable Engines and Adapter Resolver
+
+| Check | Command | Expected | Actual | Pass/Fail |
+|-------|---------|----------|--------|-----------|
+| TypeScript check | `npx tsc --noEmit` | exit 0 | exit 0, 0 errors | ✅ |
+| Full build | `npm run build` | exit 0 | exit 0, 0 errors | ✅ |
+| Masking evidence | Grep for `maskTranscript` usage | All transcript returns masked | `evidenceEngine.ts` exports `maskTranscript`; no raw transcript exposure | ✅ |
+| Adapter process-aware | `resolveAnalyticsAdapter` logic | Routes by client_id/process_name | `client_id === '497'` → finnable; `process_name === 'Finnable'` → finnable; else generic | ✅ |
