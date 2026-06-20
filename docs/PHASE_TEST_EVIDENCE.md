@@ -135,7 +135,7 @@ Exit 0. Zero DB connections made.
 
 | Issue | Root Cause | Fix |
 |-------|-----------|-----|
-| `Access denied for shivam_user@192.168.10.42` | `.env` had `DB_PASSWORD=qwersdfg!@#hjk` unquoted — `#hjk` parsed as comment, only `qwersdfg!@` reached mysql2 | Quoted value: `DB_PASSWORD="qwersdfg!@#hjk"` in `.env` (never committed) |
+| `Access denied for shivam_user@192.168.10.42` | `.env` `DB_PASSWORD` was unquoted and contained a `#` character — dotenv treated the `#` and everything after it as a comment, so only the prefix reached mysql2 | Quoted the value in `.env` (local file, never committed). **SECURITY NOTE: rotate the DB password — it was exposed in plain text during this session.** |
 | `011_alter_audit_prompt_config.sql` failed — `ADD COLUMN IF NOT EXISTS` syntax error | `ADD COLUMN IF NOT EXISTS` is MariaDB syntax; MySQL 8.0 does not support it | Removed `IF NOT EXISTS` guard — safe because pre-migration evidence confirmed columns were absent |
 
 ### Live migration terminal output
