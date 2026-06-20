@@ -7,10 +7,10 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "migrate:phase1": "ts-node -P scripts/tsconfig.json scripts/migrate.ts --phase=1",
-    "migrate:phase1:dry-run": "ts-node -P scripts/tsconfig.json scripts/migrate.ts --phase=1 --dry-run",
-    "migrate:phase4": "ts-node -P scripts/tsconfig.json scripts/migrate.ts --phase=4",
-    "migrate:phase4:dry-run": "ts-node -P scripts/tsconfig.json scripts/migrate.ts --phase=4 --dry-run"
+    "migrate:phase1": "ts-node -P scripts/tsconfig.json -r dotenv/config scripts/migrate.ts --phase=1",
+    "migrate:phase1:dry-run": "ts-node -P scripts/tsconfig.json -r dotenv/config scripts/migrate.ts --phase=1 --dry-run",
+    "migrate:phase4": "ts-node -P scripts/tsconfig.json -r dotenv/config scripts/migrate.ts --phase=4",
+    "migrate:phase4:dry-run": "ts-node -P scripts/tsconfig.json -r dotenv/config scripts/migrate.ts --phase=4 --dry-run"
   },
   "keywords": [],
   "author": "",

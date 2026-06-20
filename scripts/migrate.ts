@@ -1,9 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import dotenv from 'dotenv';
-
-dotenv.config({ path: path.join(__dirname, '../.env') });
 
 import pool from '../src/config/db';
 
@@ -12,7 +9,7 @@ const PHASE_DIRS: Record<number, string> = {
   4: path.join(__dirname, '../src/db/migrations/phase4'),
 };
 
-const ALLOWED_PHASES = [1, 4];
+const ALLOWED_PHASES = Object.keys(PHASE_DIRS).map(Number);
 
 function sha256(content: string): string {
   return crypto.createHash('sha256').update(content).digest('hex');
@@ -69,8 +66,10 @@ async function getAppliedMigrations(): Promise<Map<string, string>> {
     const map = new Map<string, string>();
     for (const row of rows) map.set(row.migration_id, row.checksum);
     return map;
-  } catch {
-    return new Map();
+  } catch (err: any) {
+    // MySQL error 1146 = ER_NO_SUCH_TABLE (table doesn't exist yet — first run)
+    if (err.errno === 1146) return new Map();
+    throw err;
   }
 }
 
@@ -94,8 +93,6 @@ async function runMigrations(phase: number, dryRun: boolean): Promise<void> {
   await ensureMigrationsTable(dryRun);
   const applied = await getAppliedMigrations();
 
-  let hasChecksumMismatch = false;
-
   for (const filename of files) {
     const migrationId = `p${phase}_${filename}`;
     const filePath = path.join(dir, filename);
@@ -105,13 +102,12 @@ async function runMigrations(phase: number, dryRun: boolean): Promise<void> {
 
     if (existingHash !== undefined) {
       if (existingHash !== hash) {
-        console.error(`[${dryRun ? 'dry-run' : 'migrate'}] CHECKSUM MISMATCH - ${dryRun ? 'would abort' : 'aborting'}: ${filename}`);
+        console.error(`[${dryRun ? 'dry-run' : 'migrate'}] CHECKSUM MISMATCH${dryRun ? ' - would abort' : ' - aborting'}: ${filename}`);
         console.error(`  stored:   ${existingHash}`);
         console.error(`  current:  ${hash}`);
-        hasChecksumMismatch = true;
-      } else {
-        console.log(`[${dryRun ? 'dry-run' : 'migrate'}] SKIP (already applied): ${filename}`);
+        process.exit(1);
       }
+      console.log(`[${dryRun ? 'dry-run' : 'migrate'}] SKIP (already applied): ${filename}`);
       continue;
     }
 
@@ -126,20 +122,25 @@ async function runMigrations(phase: number, dryRun: boolean): Promise<void> {
       .map(s => s.trim())
       .filter(s => s.length > 0 && !s.startsWith('--'));
 
-    for (const stmt of statements) {
-      await pool.execute(stmt);
+    let stmtIndex = 0;
+    try {
+      for (const stmt of statements) {
+        stmtIndex++;
+        await pool.execute(stmt);
+      }
+      await pool.execute(
+        'INSERT INTO schema_migrations (migration_id, phase, filename, checksum) VALUES (?, ?, ?, ?)',
+        [migrationId, phase, filename, hash]
+      );
+    } catch (err: any) {
+      console.error(`[migrate] FAILED at statement ${stmtIndex} of ${statements.length} in ${filename}:`);
+      console.error(`  SQL: ${statements[stmtIndex - 1]?.slice(0, 120)}...`);
+      console.error(`  Error: ${err.message}`);
+      console.error('[migrate] Migration aborted. Fix the issue and re-run. Previously applied statements in this file cannot be automatically rolled back (DDL).');
+      process.exit(1);
     }
 
-    await pool.execute(
-      'INSERT INTO schema_migrations (migration_id, phase, filename, checksum) VALUES (?, ?, ?, ?)',
-      [migrationId, phase, filename, hash]
-    );
-
     console.log(`[migrate] Applied: ${filename}`);
-  }
-
-  if (hasChecksumMismatch) {
-    process.exit(1);
   }
 
   console.log(`\n[migrate] Phase ${phase} ${dryRun ? 'dry-run' : 'migration'} complete.`);
