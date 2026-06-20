@@ -4,9 +4,9 @@
  * Does NOT print DB password or connection string.
  */
 import 'dotenv/config';
-import mysql from 'mysql2/promise';
-import fs from 'fs';
-import path from 'path';
+import * as mysql from 'mysql2/promise';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const TABLES_TO_DESCRIBE = [
   { database: 'Shivamgiri', table: 'v_call_master_unified_kpi' },
@@ -64,7 +64,7 @@ async function main() {
 
   await connection.end();
 
-  const outputPath = path.join(__dirname, '..', 'docs', 'phase2-column-verification.md');
+  const outputPath = path.join(process.cwd(), 'docs', 'phase2-column-verification.md');
   fs.writeFileSync(outputPath, output, 'utf8');
   console.log(`\n✅ Column verification written to: ${outputPath}`);
 }

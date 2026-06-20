@@ -4,9 +4,8 @@
  * Does NOT log JWT, password, or full Authorization header.
  */
 import 'dotenv/config';
-import fetch from 'node-fetch';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const BASE_URL = process.env.SMOKE_BASE_URL || 'http://localhost:5050';
 const ADMIN_EMAIL = process.env.SMOKE_ADMIN_EMAIL;
@@ -218,7 +217,7 @@ async function main() {
     output += `\n`;
   });
 
-  const outputPath = path.join(__dirname, '..', 'docs', 'phase2-runtime-smoke-results.md');
+  const outputPath = path.join(process.cwd(), 'docs', 'phase2-runtime-smoke-results.md');
   fs.writeFileSync(outputPath, output, 'utf8');
   console.log(`\n✅ Smoke test results written to: ${outputPath}`);
 
