@@ -89,10 +89,18 @@ const PM_PAGES = {
   'pm-agent-ranking': async function(preset) {
     const r = await CALLMASTER_API.post('/api/callmaster/pm/agent-leaderboard', { processName: state.processName, preset });
     const rows = (r.data || []).map((row, i) => ({ ...row, _rank: i + 1 }));
+    const exportCols = [
+      { key: '_rank', label: '#' }, { key: 'agent_name', label: 'Agent Name' },
+      { key: 'emp_id', label: 'Emp ID' }, { key: 'totalCalls', label: 'Total Calls' },
+      { key: 'avgQuality', label: 'Avg CQ%' }, { key: 'fatalPct', label: 'Fatal%' },
+      { key: 'classification', label: 'Classification' },
+    ];
     return `
       ${pageHeader('Agent Leaderboard', state.processName + ' · ' + preset)}
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
         ${presetBar(preset, 'go.bind(null,"pm-agent-ranking")')}
+        ${exportBtn('Export CSV', `exportTableCsv(${JSON.stringify(exportCols)}, ${JSON.stringify(rows)}, 'agent_leaderboard_${preset}.csv')`)}
+        ${exportBtn('Full Export', `downloadCsv('/api/callmaster/export/analyst-performance?preset=${preset}&processName=${encodeURIComponent(state.processName||'')}','agent_performance_${preset}.csv')`)}
       </div>
       ${table(
         [
@@ -175,8 +183,9 @@ const PM_PAGES = {
     }, 0);
     return `
       ${pageHeader('TNI Report', 'Agent × Parameter defect heatmap · ' + preset)}
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
         ${presetBar(preset, 'go.bind(null,"pm-tni-report")')}
+        ${exportBtn('Export CSV', `downloadCsv('/api/callmaster/export/tni-report?preset=${preset}&processName='+encodeURIComponent(state.processName||''),'tni_report_${preset}.csv')`)}
       </div>
       <div class="card" style="margin-bottom:16px">
         <div class="chart-title">Training Need Index</div>
@@ -630,59 +639,235 @@ const PM_PAGES = {
 
   // ── 16. Inbound Call Explorer ───────────────────────────────────────────
   'pm-inbound-explorer': async function(preset) {
-    const r    = await CALLMASTER_API.post('/api/callmaster/pm/inbound-explorer', { processName: state.processName, preset, page: 1 });
+    const page     = state.explorerPage   || 1;
+    const search   = state.explorerSearch || '';
+    const pageSize = 20;
+    const r    = await CALLMASTER_API.post('/api/callmaster/pm/inbound-explorer', { processName: state.processName, preset, page, pageSize, search });
     const d    = r.data || {};
     const rows = d.rows || (Array.isArray(r.data) ? r.data : []);
+    const total = Number(d.total || rows.length || 0);
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const exportCols = [
+      { key: 'source_call_id', label: 'Call ID' }, { key: 'agent_name', label: 'Agent' },
+      { key: 'lob', label: 'LOB' }, { key: 'call_date', label: 'Date' },
+      { key: 'call_quality_percentage', label: 'Quality%' }, { key: 'fatal_flag', label: 'Fatal' }, { key: 'scenario', label: 'Scenario' },
+    ];
     return `
       ${pageHeader('Inbound Call Explorer', state.processName + ' · ' + preset)}
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
         ${presetBar(preset, 'go.bind(null,"pm-inbound-explorer")')}
+        ${exportBtn('Export CSV', `exportTableCsv(${JSON.stringify(exportCols)}, ${JSON.stringify(rows)}, 'inbound_explorer_p${page}.csv')`)}
+        ${exportBtn('Full Export', `downloadCsv('/api/callmaster/export/inbound-calls?preset=${preset}&processName='+encodeURIComponent(state.processName||''),'inbound_calls_all.csv')`)}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <input id="explorerSearchInput" type="text" value="${search.replace(/"/g,'&quot;')}"
+          placeholder="Search agent, call ID, LOB..."
+          style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:7px 12px;color:#e2e8f0;font-size:13px;min-width:240px"
+          onkeydown="if(event.key==='Enter'){state.explorerSearch=this.value;state.explorerPage=1;go('pm-inbound-explorer')}" />
+        <button onclick="state.explorerSearch=document.getElementById('explorerSearchInput').value;state.explorerPage=1;go('pm-inbound-explorer')"
+          style="background:#2563eb;border:none;border-radius:6px;padding:7px 14px;color:#fff;font-size:13px;cursor:pointer">Search</button>
+        ${search ? `<button onclick="state.explorerSearch='';state.explorerPage=1;go('pm-inbound-explorer')" style="background:#334155;border:none;border-radius:6px;padding:7px 12px;color:#94a3b8;font-size:13px;cursor:pointer">Clear</button>` : ''}
       </div>
       <div class="kpi-grid" style="margin-bottom:20px">
-        ${kpi('Total Rows', Number(d.total || rows.length || 0).toLocaleString(), 'Inbound calls matching filter')}
+        ${kpi('Total Rows', total.toLocaleString(), 'Inbound calls matching filter')}
+        ${kpi('Page', page + ' / ' + totalPages, pageSize + ' per page')}
       </div>
       ${table(
         [
-          { key: 'source_call_id',         label: 'Call ID',    render: v => `<span class="td-mono">${v || '—'}</span>` },
-          { key: 'agent_name',             label: 'Agent' },
-          { key: 'lob',                    label: 'LOB' },
-          { key: 'call_date',              label: 'Date' },
-          { key: 'call_quality_percentage', label: 'Quality%', render: v => v != null ? `<span class="td-mono">${Number(v).toFixed(1)}%</span>` : '—' },
-          { key: 'fatal_flag',             label: 'Fatal',     render: v => v ? `<span class="badge badge-red">Yes</span>` : `<span class="badge badge-green">No</span>` },
-          { key: 'scenario',               label: 'Scenario' },
+          { key: 'source_call_id',          label: 'Call ID',   render: v => `<span class="td-mono">${v || '—'}</span>` },
+          { key: 'agent_name',              label: 'Agent' },
+          { key: 'lob',                     label: 'LOB' },
+          { key: 'call_date',               label: 'Date' },
+          { key: 'call_quality_percentage', label: 'Quality%',  render: v => v != null ? `<span class="td-mono">${Number(v).toFixed(1)}%</span>` : '—' },
+          { key: 'fatal_flag',              label: 'Fatal',     render: v => v ? `<span class="badge badge-red">Yes</span>` : `<span class="badge badge-green">No</span>` },
+          { key: 'scenario',                label: 'Scenario' },
         ],
         rows,
         { emptyMsg: 'No inbound call records found' }
-      )}`;
+      )}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:16px;justify-content:flex-end">
+        <span style="font-size:13px;color:#64748b">${total.toLocaleString()} rows · Page ${page} of ${totalPages}</span>
+        ${page > 1 ? `<button onclick="state.explorerPage=${page-1};go('pm-inbound-explorer')" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px">&#8592; Prev</button>` : ''}
+        ${page < totalPages ? `<button onclick="state.explorerPage=${page+1};go('pm-inbound-explorer')" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px">Next &#8594;</button>` : ''}
+      </div>`;
   },
 
   // ── 17. Outbound Call Explorer ──────────────────────────────────────────
   'pm-outbound-explorer': async function(preset) {
-    const r    = await CALLMASTER_API.post('/api/callmaster/pm/outbound-explorer', { processName: state.processName, preset, page: 1 });
+    const page     = state.explorerPage   || 1;
+    const search   = state.explorerSearch || '';
+    const pageSize = 20;
+    const r    = await CALLMASTER_API.post('/api/callmaster/pm/outbound-explorer', { processName: state.processName, preset, page, pageSize, search });
     const d    = r.data || {};
     const rows = d.rows || (Array.isArray(r.data) ? r.data : []);
+    const total = Number(d.total || rows.length || 0);
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const exportCols = [
+      { key: 'source_call_id', label: 'Call ID' }, { key: 'agent_name', label: 'Agent' },
+      { key: 'lob', label: 'LOB' }, { key: 'call_date', label: 'Date' },
+      { key: 'call_quality_percentage', label: 'Quality%' }, { key: 'fatal_flag', label: 'Fatal' }, { key: 'pitch_stage', label: 'Pitch Stage' },
+    ];
     return `
       ${pageHeader('Outbound Call Explorer', state.processName + ' · ' + preset)}
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
         ${presetBar(preset, 'go.bind(null,"pm-outbound-explorer")')}
+        ${exportBtn('Export CSV', `exportTableCsv(${JSON.stringify(exportCols)}, ${JSON.stringify(rows)}, 'outbound_explorer_p${page}.csv')`)}
+        ${exportBtn('Full Export', `downloadCsv('/api/callmaster/export/outbound-calls?preset=${preset}&processName='+encodeURIComponent(state.processName||''),'outbound_calls_all.csv')`)}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <input id="explorerSearchInput" type="text" value="${search.replace(/"/g,'&quot;')}"
+          placeholder="Search agent, call ID, LOB..."
+          style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:7px 12px;color:#e2e8f0;font-size:13px;min-width:240px"
+          onkeydown="if(event.key==='Enter'){state.explorerSearch=this.value;state.explorerPage=1;go('pm-outbound-explorer')}" />
+        <button onclick="state.explorerSearch=document.getElementById('explorerSearchInput').value;state.explorerPage=1;go('pm-outbound-explorer')"
+          style="background:#2563eb;border:none;border-radius:6px;padding:7px 14px;color:#fff;font-size:13px;cursor:pointer">Search</button>
+        ${search ? `<button onclick="state.explorerSearch='';state.explorerPage=1;go('pm-outbound-explorer')" style="background:#334155;border:none;border-radius:6px;padding:7px 12px;color:#94a3b8;font-size:13px;cursor:pointer">Clear</button>` : ''}
       </div>
       <div class="kpi-grid" style="margin-bottom:20px">
-        ${kpi('Total Rows', Number(d.total || rows.length || 0).toLocaleString(), 'Outbound calls matching filter')}
+        ${kpi('Total Rows', total.toLocaleString(), 'Outbound calls matching filter')}
+        ${kpi('Page', page + ' / ' + totalPages, pageSize + ' per page')}
       </div>
       ${table(
         [
-          { key: 'source_call_id',         label: 'Call ID',    render: v => `<span class="td-mono">${v || '—'}</span>` },
-          { key: 'agent_name',             label: 'Agent' },
-          { key: 'lob',                    label: 'LOB' },
-          { key: 'call_date',              label: 'Date' },
-          { key: 'call_quality_percentage', label: 'Quality%', render: v => v != null ? `<span class="td-mono">${Number(v).toFixed(1)}%</span>` : '—' },
-          { key: 'fatal_flag',             label: 'Fatal',     render: v => v ? `<span class="badge badge-red">Yes</span>` : `<span class="badge badge-green">No</span>` },
-          { key: 'pitch_stage',            label: 'Pitch Stage' },
+          { key: 'source_call_id',          label: 'Call ID',    render: v => `<span class="td-mono">${v || '—'}</span>` },
+          { key: 'agent_name',              label: 'Agent' },
+          { key: 'lob',                     label: 'LOB' },
+          { key: 'call_date',               label: 'Date' },
+          { key: 'call_quality_percentage', label: 'Quality%',   render: v => v != null ? `<span class="td-mono">${Number(v).toFixed(1)}%</span>` : '—' },
+          { key: 'fatal_flag',              label: 'Fatal',      render: v => v ? `<span class="badge badge-red">Yes</span>` : `<span class="badge badge-green">No</span>` },
+          { key: 'pitch_stage',             label: 'Pitch Stage' },
         ],
         rows,
         { emptyMsg: 'No outbound call records found' }
+      )}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:16px;justify-content:flex-end">
+        <span style="font-size:13px;color:#64748b">${total.toLocaleString()} rows · Page ${page} of ${totalPages}</span>
+        ${page > 1 ? `<button onclick="state.explorerPage=${page-1};go('pm-outbound-explorer')" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px">&#8592; Prev</button>` : ''}
+        ${page < totalPages ? `<button onclick="state.explorerPage=${page+1};go('pm-outbound-explorer')" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px">Next &#8594;</button>` : ''}
+      </div>`;
+  },
+
+  // ── 18. Call Explorer (smart: inbound or outbound based on process config) ─
+  'pm-explorer': async function(preset) {
+    const r = await CALLMASTER_API.post('/api/callmaster/pm/overview', { processName: state.processName, preset });
+    const sourceType = (r.data || {}).sourceType || 'Inbound';
+    if (sourceType === 'Outbound') return PM_PAGES['pm-outbound-explorer'](preset);
+    return PM_PAGES['pm-inbound-explorer'](preset);
+  },
+
+  // ── 19. Daily Trends ─────────────────────────────────────────────────────
+  'pm-trends': async function(preset) {
+    const r = await CALLMASTER_API.post('/api/callmaster/pm/overview', { processName: state.processName, preset });
+    const d = r.data || {};
+    const trend = d.trend || [];
+    setTimeout(() => {
+      lineChart(
+        'pmTrendsChart',
+        [{ name: 'Avg CQ%', data: trend.map(t => t.avgQuality) }],
+        trend.map(t => t.date),
+        { targetLine: d.targetCqPct, yFormatter: v => v + '%' }
+      );
+    }, 0);
+    return `
+      ${pageHeader('Daily Trends', state.processName + ' · ' + preset)}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+        ${presetBar(preset, 'go.bind(null,"pm-trends")')}
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="chart-title">Daily Quality Score Trend</div>
+        <div class="chart-wrap" id="pmTrendsChart"></div>
+      </div>
+      ${trend.length === 0 ? emptyState('No trend data for selected period') : table(
+        [
+          { key: 'date',       label: 'Date' },
+          { key: 'avgQuality', label: 'Avg CQ%', render: v => v != null ? `<span class="td-mono">${Number(v).toFixed(2)}%</span>` : '—' },
+        ],
+        trend
       )}`;
   },
+
+  // ── 20. Evidence Viewer ───────────────────────────────────────────────────
+  'pm-evidence': async function(preset) {
+    return `
+      ${pageHeader('Evidence Viewer', 'Look up a call by ID')}
+      <div class="card" style="max-width:480px;margin-bottom:20px">
+        <div style="margin-bottom:12px">
+          <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:4px">Call ID</label>
+          <input id="pmEvidenceCallId" type="text" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px;color:#f1f5f9;font-size:13px" placeholder="e.g. IB-2891 or OB-5512" />
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:4px">Source Type</label>
+          <select id="pmEvidenceSourceType" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px;color:#f1f5f9;font-size:13px">
+            <option value="Inbound">Inbound</option>
+            <option value="Outbound">Outbound</option>
+          </select>
+        </div>
+        <button onclick="loadPmEvidence()" style="background:#2563eb;border:none;border-radius:6px;padding:8px 20px;color:#fff;cursor:pointer;font-weight:600">Load Call</button>
+      </div>
+      <div id="pmEvidenceResult"></div>`;
+  },
+
+  // ── 21. Defect Analysis ───────────────────────────────────────────────────
+  'pm-defect-analysis': async function(preset) {
+    const r = await CALLMASTER_API.post('/api/callmaster/pm/parameter-breakdown', { processName: state.processName, preset });
+    const d = r.data || {};
+    const PARAMS = [
+      { key: 'professionalism_maintained',      label: 'Professionalism' },
+      { key: 'accurate_issue_probing',           label: 'Issue Probing' },
+      { key: 'case_escalated_correctly',         label: 'Escalation' },
+      { key: 'proper_hold_procedure',            label: 'Hold Procedure' },
+      { key: 'correct_and_complete_information', label: 'Correct Info' },
+      { key: 'proper_call_closure',              label: 'Call Closure' },
+    ];
+    const total = Number(d.total || 0);
+    const rows = PARAMS.map(p => {
+      const pass = Number(d[p.key] || 0);
+      const fail = total - pass;
+      const failPct = total > 0 ? +((fail / total) * 100).toFixed(1) : 0;
+      return { parameter: p.label, pass_count: pass, fail_count: fail > 0 ? fail : 0, fail_pct: failPct };
+    }).sort((a, b) => b.fail_pct - a.fail_pct);
+    setTimeout(() => {
+      if (rows.length > 0) {
+        barChart('pmDefectChart',
+          [{ name: 'Defect %', data: rows.map(r => r.fail_pct) }],
+          rows.map(r => r.parameter),
+          { horizontal: true, yFormatter: v => v + '%' }
+        );
+      }
+    }, 0);
+    return `
+      ${pageHeader('Defect Analysis', state.processName + ' · ' + preset)}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+        ${presetBar(preset, 'go.bind(null,"pm-defect-analysis")')}
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="chart-title">Defect Rate by Parameter (ranked worst first)</div>
+        <div class="chart-wrap" id="pmDefectChart"></div>
+      </div>
+      ${table(
+        [
+          { key: 'parameter', label: 'Parameter' },
+          { key: 'fail_pct',  label: 'Defect %', render: v => {
+              const n = Number(v);
+              const cls = n > 20 ? 'sev-critical' : n > 10 ? 'sev-high' : '';
+              return `<span class="td-mono ${cls}">${n.toFixed(1)}%</span>`;
+          }},
+          { key: 'fail_count', label: 'Defects',  render: v => Number(v || 0).toLocaleString() },
+          { key: 'pass_count', label: 'Passed',   render: v => Number(v || 0).toLocaleString() },
+        ],
+        rows,
+        { emptyMsg: 'No parameter data for selected period' }
+      )}`;
+  },
+
+  // ── Aliases: nav keys → existing page functions ──────────────────────────
+  'pm-parameters':        async function(preset) { return PM_PAGES['pm-param-breakdown'](preset); },
+  'pm-analyst-scorecard': async function(preset) { return PM_PAGES['pm-agent-ranking'](preset); },
+  'pm-tni':               async function(preset) { return PM_PAGES['pm-tni-report'](preset); },
+  'pm-scenario':          async function(preset) { return PM_PAGES['pm-scenario-analysis'](preset); },
+  'pm-escalation':        async function(preset) { return PM_PAGES['pm-escalation-analysis'](preset); },
+  'pm-cst-crt':           async function(preset) { return PM_PAGES['pm-cst-funnel'](preset); },
+  'pm-missed-opp':        async function(preset) { return PM_PAGES['pm-moa'](preset); },
 
 };
 
@@ -691,4 +876,69 @@ async function pmAcknowledgeAlert(alertId) {
   const r = await CALLMASTER_API.post('/api/callmaster/pm/alerts/' + alertId + '/acknowledge', {});
   if (r.success) go('pm-fatal-analysis');
   else alert('Failed: ' + (r.error || r.message || 'Unknown error'));
+}
+
+async function loadPmEvidence() {
+  const callId    = document.getElementById('pmEvidenceCallId').value.trim();
+  const srcType   = document.getElementById('pmEvidenceSourceType').value;
+  const container = document.getElementById('pmEvidenceResult');
+  if (!callId) { container.innerHTML = '<div style="color:#f87171;font-size:13px">Enter a Call ID first.</div>'; return; }
+  container.innerHTML = skeleton();
+  window._analystCallId    = callId;
+  window._analystSourceType = srcType;
+  const r = await CALLMASTER_API.get('/api/callmaster/analyst/call/' + callId + '?sourceType=' + encodeURIComponent(srcType));
+  if (!r.success || !r.data) { container.innerHTML = '<div style="color:#f87171;font-size:13px">Call not found.</div>'; return; }
+  // Reuse analyst-evidence rendering logic via go, or render inline
+  const d = r.data;
+  const isInbound = srcType === 'Inbound';
+  const flagRow = (label, val, bad) => {
+    const isBad = bad || (val && val !== 'No' && val !== '0' && val !== 0);
+    return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e293b">
+      <span style="color:#94a3b8;font-size:13px">${label}</span>
+      <span class="${isBad ? 'sev-critical' : ''}" style="font-size:13px;color:${isBad ? '#ef4444' : '#4ade80'}">${val != null ? val : '—'}</span>
+    </div>`;
+  };
+  container.innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div class="chart-title">Call: ${d.source_call_id}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-top:12px">
+        ${flagRow('Agent', d.agent_employee_name)}
+        ${flagRow('Process', d.process_name)}
+        ${flagRow('Date', d.call_datetime ? new Date(d.call_datetime).toLocaleString() : d.call_date)}
+        ${flagRow('Duration', d.length_in_sec ? Math.floor(d.length_in_sec/60) + 'm ' + (d.length_in_sec%60) + 's' : '—')}
+        ${flagRow('Quality Score', d.quality_score != null ? d.quality_score + '%' : '—')}
+        ${isInbound ? flagRow('Fraud Risk Score', d.overall_fraud_risk_score, Number(d.overall_fraud_risk_score) > 0.5) : flagRow('Sale Done', d.SaleDone ? 'Yes' : 'No')}
+      </div>
+    </div>
+    ${isInbound ? `
+    <div class="card" style="margin-bottom:16px">
+      <div class="chart-title">Risk & Compliance Flags</div>
+      <div style="margin-top:8px">
+        ${flagRow('Data Theft / Misuse',           d.data_theft_or_misuse,           d.data_theft_or_misuse === 'Yes')}
+        ${flagRow('Financial Fraud',               d.financial_fraud,                d.financial_fraud === 'Yes')}
+        ${flagRow('Escalation Failure',            d.escalation_failure,             d.escalation_failure === 'Yes')}
+        ${flagRow('Unprofessional Behavior',       d.unprofessional_behavior,        d.unprofessional_behavior === 'Yes')}
+        ${flagRow('System Manipulation',           d.system_manipulation,            d.system_manipulation === 'Yes')}
+        ${flagRow('Collusion',                     d.collusion,                      d.collusion === 'Yes')}
+        ${flagRow('Policy Communication Failure',  d.policy_communication_failure,   d.policy_communication_failure === 'Yes')}
+      </div>
+    </div>` : `
+    <div class="card" style="margin-bottom:16px">
+      <div class="chart-title">Sales Intelligence</div>
+      <div style="margin-top:8px">
+        ${flagRow('Disposition',         d.CallDisposition)}
+        ${flagRow('Feedback Category',   d.Feedback_Category)}
+        ${flagRow('Customer Objection',  d.CustomerObjectionCategory)}
+        ${flagRow('Agent Rebuttal',      d.AgentRebuttalCategory)}
+        ${flagRow('Opening',             d.Opening ? 'Done' : 'Missed', !d.Opening)}
+        ${flagRow('Offer Pitched',       d.Offered  ? 'Done' : 'Missed', !d.Offered)}
+        ${flagRow('Objection Handling',  d.ObjectionHandling ? 'Done' : 'Missed', !d.ObjectionHandling)}
+        ${flagRow('Prepaid Pitch',       d.PrepaidPitch ? 'Done' : 'Missed', !d.PrepaidPitch)}
+      </div>
+    </div>`}
+    ${d.transcript_text ? `
+    <div class="card">
+      <div class="chart-title">Transcript</div>
+      <pre style="white-space:pre-wrap;font-size:12px;color:#94a3b8;margin-top:8px;line-height:1.6">${d.transcript_text}</pre>
+    </div>` : ''}`;
 }

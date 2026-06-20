@@ -250,8 +250,28 @@ const _MOCK_ROUTES = {
   '/api/callmaster/pm/nps-csat':              (b) => mockPmNpsCsat(b.preset || 'MTD'),
   '/api/callmaster/pm/pitch-stage-analysis':  (b) => ({ stages:[{ stage:'Opening Rejected', count:s(7200,b.preset||'MTD'), pct:18.7 }, { stage:'Offering Rejected', count:s(5400,b.preset||'MTD'), pct:14.0 }, { stage:'After Listen Rejected', count:s(3100,b.preset||'MTD'), pct:8.1 }, { stage:'Sale Done', count:s(9800,b.preset||'MTD'), pct:25.5 }] }),
   '/api/callmaster/pm/objection-rebuttal':    (b) => mockPmObjectionRebuttal(b.preset || 'MTD'),
-  '/api/callmaster/pm/inbound-explorer':      (b) => ({ rows:[{ agent_name:'Ravi Kumar', lob_name:'Query', audit_date:'2026-05-27', call_quality_percentage:82.1, fatal_flag:0 }, { agent_name:'Meera Joshi', lob_name:'Complaint', audit_date:'2026-05-27', call_quality_percentage:68.2, fatal_flag:1 }], total:s(38500,b.preset||'MTD'), page:1 }),
-  '/api/callmaster/pm/outbound-explorer':     (b) => ({ rows:[{ agent_name:'Ravi Kumar', lob_name:'Sales', audit_date:'2026-05-27', call_quality_percentage:79.4, fatal_flag:0 }], total:s(24200,b.preset||'MTD'), page:1 }),
+  '/api/callmaster/pm/inbound-explorer': (b) => {
+    const allRows = [
+      { source_call_id:'IB-2891', agent_name:'Ravi Kumar',  lob:'Query',     call_date:'2026-05-27', call_quality_percentage:82.1, fatal_flag:0, scenario:'General Query' },
+      { source_call_id:'IB-2910', agent_name:'Anita Sharma',lob:'Complaint', call_date:'2026-05-27', call_quality_percentage:97.2, fatal_flag:0, scenario:'Complaint Resolution' },
+      { source_call_id:'IB-3102', agent_name:'Rahul Singh', lob:'Query',     call_date:'2026-05-26', call_quality_percentage:68.2, fatal_flag:1, scenario:'Hold Escalation' },
+      { source_call_id:'IB-3250', agent_name:'Meera Joshi', lob:'Complaint', call_date:'2026-05-25', call_quality_percentage:74.5, fatal_flag:0, scenario:'Data Query' },
+    ];
+    const q = (b.search||'').toLowerCase();
+    const filtered = q ? allRows.filter(r => r.source_call_id.toLowerCase().includes(q) || r.agent_name.toLowerCase().includes(q) || r.lob.toLowerCase().includes(q)) : allRows;
+    const page = b.page || 1; const pageSize = b.pageSize || 20;
+    return { rows: filtered.slice((page-1)*pageSize, page*pageSize), total: s(38500, b.preset||'MTD'), page };
+  },
+  '/api/callmaster/pm/outbound-explorer': (b) => {
+    const allRows = [
+      { source_call_id:'OB-1045', agent_name:'Ravi Kumar',  lob:'Sales', call_date:'2026-05-27', call_quality_percentage:79.4, fatal_flag:0, pitch_stage:'Offering Rejected' },
+      { source_call_id:'OB-1120', agent_name:'Kiran Patil', lob:'Sales', call_date:'2026-05-26', call_quality_percentage:83.1, fatal_flag:0, pitch_stage:'Sale Done' },
+    ];
+    const q = (b.search||'').toLowerCase();
+    const filtered = q ? allRows.filter(r => r.source_call_id.toLowerCase().includes(q) || r.agent_name.toLowerCase().includes(q)) : allRows;
+    const page = b.page || 1; const pageSize = b.pageSize || 20;
+    return { rows: filtered.slice((page-1)*pageSize, page*pageSize), total: s(24200, b.preset||'MTD'), page };
+  },
   '/api/callmaster/pm/risk-alerts':           (b) => ([
     { alert_id:4, source_call_id:'IB-2891', agent:'Ravi Kumar',  alert_severity:'Critical', alert_reason:'Data theft detected',    call_date:'2026-05-27' },
     { alert_id:5, source_call_id:'IB-3102', agent:'Rahul Singh', alert_severity:'High',     alert_reason:'Escalation failure',     call_date:'2026-05-26' },
@@ -282,10 +302,18 @@ const _MOCK_ROUTES = {
   ]),
   '/api/callmaster/analyst/overview':      (b) => ({ my_score:88.9, my_calls:s(310,b.preset||'MTD'), my_fatal:2, target_cq_pct:95 }),
   '/api/callmaster/analyst/defects':       (b) => ({ params:[{param:'Compliance',lost_marks:s(18,b.preset||'MTD')},{param:'Resolution',lost_marks:s(8,b.preset||'MTD')}] }),
-  '/api/callmaster/analyst/my-calls':      (b) => ({ total:s(310,b.preset||'MTD'), calls:[
-    { id:'IB-2910', source_type:'Inbound',  process_name:'GNC Inbound', call_date:'2026-05-27', quality_score:91.5, quality_band:'TQ', alert_severity:'Normal' },
-    { id:'OB-5512', source_type:'Outbound', process_name:'Birlanu MCN', call_date:'2026-05-26', quality_score:null, quality_band:'MQ', alert_severity:'Normal' },
-  ]}),
+  '/api/callmaster/analyst/my-calls': (b) => {
+    const allCalls = [
+      { id:'IB-2910', source_type:'Inbound',  process_name:'GNC Inbound', call_date:'2026-05-27', quality_score:91.5, quality_band:'TQ', alert_severity:'Normal' },
+      { id:'OB-5512', source_type:'Outbound', process_name:'Birlanu MCN', call_date:'2026-05-26', quality_score:null, quality_band:'MQ', alert_severity:'Normal' },
+      { id:'IB-2891', source_type:'Inbound',  process_name:'GNC Inbound', call_date:'2026-05-25', quality_score:78.2, quality_band:'BQ', alert_severity:'High' },
+      { id:'IB-3102', source_type:'Inbound',  process_name:'GNC Inbound', call_date:'2026-05-24', quality_score:88.0, quality_band:'MQ', alert_severity:'Normal' },
+    ];
+    const q = (b.search||'').toLowerCase();
+    const filtered = q ? allCalls.filter(c => c.id.toLowerCase().includes(q) || c.process_name.toLowerCase().includes(q)) : allCalls;
+    const page = b.page || 1; const pageSize = b.pageSize || 20;
+    return { total: s(310, b.preset||'MTD'), calls: filtered.slice((page-1)*pageSize, page*pageSize) };
+  },
   '/api/callmaster/analyst/trend':         ()  => mockCeoTrend(),
   '/api/callmaster/analyst/coaching':      ()  => ({ sessions:[{id:1,date:'2026-05-20',coach:'Pooja',notes:'Work on compliance script adherence',status:'Acknowledged'}] }),
   '/api/callmaster/analyst/feedback':     () => ({ feedback_id: Math.floor(Math.random() * 1000) + 1 }),

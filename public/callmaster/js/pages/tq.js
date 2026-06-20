@@ -88,10 +88,19 @@ const TQ_PAGES = {
   'tq-leaderboard': async function(preset) {
     const r = await CALLMASTER_API.post('/api/callmaster/tq/leaderboard', { preset });
     const rows = r.data || [];
+    const exportCols = [
+      { key: '_rank', label: '#' }, { key: 'name', label: 'Analyst' },
+      { key: 'process_name', label: 'Process' }, { key: 'source_type', label: 'Type' },
+      { key: 'avg_score', label: 'Avg CQ%' }, { key: 'total_calls', label: 'Calls' },
+      { key: 'critical_count', label: 'Critical' }, { key: 'classification', label: 'Class' },
+    ];
+    const ranked = rows.map((r, i) => ({ ...r, _rank: i + 1 }));
     return `
       ${pageHeader('Analyst Leaderboard', 'Cross-process ranking · ' + preset)}
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
         ${presetBar(preset, 'go.bind(null,"tq-leaderboard")')}
+        ${exportBtn('Export CSV', `exportTableCsv(${JSON.stringify(exportCols)}, ${JSON.stringify(ranked)}, 'tq_leaderboard_${preset}.csv')`)}
+        ${exportBtn('Full Export', `downloadCsv('/api/callmaster/export/analyst-performance?preset=${preset}','analyst_performance_${preset}.csv')`)}
       </div>
       ${table(
         [
@@ -113,7 +122,7 @@ const TQ_PAGES = {
           { key: 'critical_count',  label: 'Critical',   render: v => Number(v) > 0 ? `<span class="sev-critical">${v}</span>` : '0' },
           { key: 'classification',  label: 'Class',      render: v => classificationBadge(v) },
         ],
-        rows.map((r, i) => ({ ...r, _rank: i + 1 })),
+        ranked,
         { emptyMsg: 'No analyst data for selected period' }
       )}`;
   },
@@ -251,8 +260,17 @@ const TQ_PAGES = {
   'tq-feedback-queue': async function(preset) {
     const r = await CALLMASTER_API.get('/api/callmaster/tq/feedback-queue?status=pending');
     const rows = r.data || [];
+    const exportCols = [
+      { key: 'feedback_id', label: 'ID' }, { key: 'source_call_id', label: 'Call ID' },
+      { key: 'source_type', label: 'Type' }, { key: 'analyst_name', label: 'Analyst' },
+      { key: 'feedback_text', label: 'Reason' }, { key: 'created_at', label: 'Submitted' },
+      { key: 'feedback_status', label: 'Status' },
+    ];
     return `
       ${pageHeader('Feedback Queue', rows.length + ' pending disputes')}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        ${exportBtn('Export CSV', `exportTableCsv(${JSON.stringify(exportCols)}, ${JSON.stringify(rows)}, 'tq_feedback_queue.csv')`)}
+      </div>
       ${table(
         [
           { key: 'feedback_id',     label: 'ID',       render: v => `<span class="td-mono">${v}</span>` },
@@ -329,6 +347,57 @@ const TQ_PAGES = {
         <div id="genSuccess" style="color:#4ade80;font-size:12px;margin-bottom:12px;display:none"></div>
         <button onclick="doGenerateCoaching()" style="background:#2563eb;border:none;border-radius:8px;padding:10px 20px;color:#fff;cursor:pointer;font-weight:600;font-size:14px">Generate Coaching Content</button>
       </div>`;
+  },
+
+  'tq-snapshot-trend': async function(preset) {
+    const r = await CALLMASTER_API.post('/api/callmaster/tq/snapshot-trend', { preset });
+    const rows = Array.isArray(r.data) ? r.data : [];
+
+    // Group rows by process_name for multi-series chart
+    const processNames = [...new Set(rows.map(r => r.process_name || 'Unknown'))];
+    const allDates = [...new Set(rows.map(r => r.call_date || r.snapshot_date || ''))].sort();
+
+    const series = processNames.map(pn => ({
+      name: pn,
+      data: allDates.map(d => {
+        const match = rows.find(r => (r.call_date || r.snapshot_date) === d && r.process_name === pn);
+        return match ? Number(match.avg_score || 0) : null;
+      }),
+    }));
+
+    setTimeout(() => {
+      if (allDates.length > 0) {
+        lineChart(
+          'tqSnapshotChart',
+          series,
+          allDates,
+          { yFormatter: v => v + '%', targetLine: 85 }
+        );
+      }
+    }, 0);
+
+    return `
+      ${pageHeader('Snapshot Trends', 'Pre-aggregated 30-day quality trends by process · ' + preset)}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+        ${presetBar(preset, 'go.bind(null,"tq-snapshot-trend")')}
+        ${exportBtn('Export CSV', `exportTableCsv([{key:'call_date',label:'Date'},{key:'process_name',label:'Process'},{key:'avg_score',label:'Avg CQ%'},{key:'critical_count',label:'Critical'}], ${JSON.stringify(rows)}, 'tq_snapshot_trend_${preset}.csv')`)}
+      </div>
+      ${rows.length === 0 ? emptyState('No snapshot data available. Run the daily snapshot job to populate this table.') : `
+        <div class="card" style="margin-bottom:16px">
+          <div class="chart-title">Avg CQ% by Process — Snapshot Data</div>
+          <div class="chart-wrap" id="tqSnapshotChart"></div>
+        </div>
+        ${table(
+          [
+            { key: 'call_date',      label: 'Date',     render: v => v || '—' },
+            { key: 'process_name',   label: 'Process' },
+            { key: 'avg_score',      label: 'Avg CQ%',  render: v => v != null ? `<span class="td-mono">${Number(v).toFixed(1)}%</span>` : '—' },
+            { key: 'critical_count', label: 'Critical', render: v => Number(v || 0) > 0 ? `<span class="sev-critical">${v}</span>` : '0' },
+          ],
+          rows,
+          { emptyMsg: 'No snapshot rows' }
+        )}
+      `}`;
   },
 };
 

@@ -88,20 +88,41 @@ const ANALYST_PAGES = {
   },
 
   'analyst-calls': async function(preset) {
-    const r = await CALLMASTER_API.post('/api/callmaster/analyst/my-calls', { preset });
+    const page     = state.explorerPage   || 1;
+    const search   = state.explorerSearch || '';
+    const pageSize = 20;
+    const r = await CALLMASTER_API.post('/api/callmaster/analyst/my-calls', { preset, page, pageSize, search });
     const d = r.data || {};
 
     // Handle both real API { total, calls: [...] } and mock { total, calls: [...] }
     const calls = Array.isArray(d.calls) ? d.calls : (Array.isArray(d) ? d : []);
     const total = d.total ?? calls.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const exportCols = [
+      { key: 'id', label: 'Call ID' }, { key: 'source_type', label: 'Type' },
+      { key: 'process_name', label: 'Process' }, { key: 'call_date', label: 'Date' },
+      { key: 'quality_score', label: 'CQ%' }, { key: 'quality_band', label: 'Band' },
+      { key: 'alert_severity', label: 'Severity' },
+    ];
 
     return `
       ${pageHeader('My Calls', total + ' calls in selected period · ' + preset)}
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
         ${presetBar(preset, 'go.bind(null,"analyst-calls")')}
+        ${exportBtn('Export CSV', `exportTableCsv(${JSON.stringify(exportCols)}, ${JSON.stringify(calls)}, 'my_calls_${preset}_p${page}.csv')`)}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <input id="explorerSearchInput" type="text" value="${search.replace(/"/g,'&quot;')}"
+          placeholder="Search call ID, process..."
+          style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:7px 12px;color:#e2e8f0;font-size:13px;min-width:220px"
+          onkeydown="if(event.key==='Enter'){state.explorerSearch=this.value;state.explorerPage=1;go('analyst-calls')}" />
+        <button onclick="state.explorerSearch=document.getElementById('explorerSearchInput').value;state.explorerPage=1;go('analyst-calls')"
+          style="background:#2563eb;border:none;border-radius:6px;padding:7px 14px;color:#fff;font-size:13px;cursor:pointer">Search</button>
+        ${search ? `<button onclick="state.explorerSearch='';state.explorerPage=1;go('analyst-calls')" style="background:#334155;border:none;border-radius:6px;padding:7px 12px;color:#94a3b8;font-size:13px;cursor:pointer">Clear</button>` : ''}
       </div>
       <div class="kpi-grid" style="margin-bottom:20px">
         ${kpi('Total Calls', Number(total).toLocaleString(), 'Evaluated calls in period')}
+        ${kpi('Page', page + ' / ' + totalPages, pageSize + ' per page')}
       </div>
       ${table(
         [
@@ -120,6 +141,11 @@ const ANALYST_PAGES = {
         calls,
         { emptyMsg: 'No calls found for selected period' }
       )}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:16px;justify-content:flex-end">
+        <span style="font-size:13px;color:#64748b">${Number(total).toLocaleString()} calls · Page ${page} of ${totalPages}</span>
+        ${page > 1 ? `<button onclick="state.explorerPage=${page-1};go('analyst-calls')" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px">&#8592; Prev</button>` : ''}
+        ${page < totalPages ? `<button onclick="state.explorerPage=${page+1};go('analyst-calls')" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px">Next &#8594;</button>` : ''}
+      </div>
       <div id="disputeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
         <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:28px;width:480px;max-width:90vw">
           <div style="font-size:16px;font-weight:600;margin-bottom:16px;color:#f1f5f9">Dispute Call Score</div>

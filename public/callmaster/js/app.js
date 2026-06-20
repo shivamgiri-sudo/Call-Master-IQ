@@ -12,7 +12,12 @@ const CALLMASTER_API = {
     return res.json();
   },
   post(path, body) {
-    return this.request(path, { method: 'POST', body: JSON.stringify(body) });
+    const enriched = { ...body };
+    if (typeof state !== 'undefined' && state.preset === 'custom' && state.startDate && state.endDate) {
+      enriched.startDate = state.startDate;
+      enriched.endDate   = state.endDate;
+    }
+    return this.request(path, { method: 'POST', body: JSON.stringify(enriched) });
   },
   get(path) {
     return this.request(path);
@@ -23,8 +28,12 @@ const CALLMASTER_API = {
 const state = {
   page: null,
   preset: 'MTD',
+  startDate: null,
+  endDate: null,
   user: null,
   processName: null,   // active process for PM drilldown
+  explorerPage: 1,     // current page for call explorers
+  explorerSearch: '',  // current search term for call explorers
 };
 
 // ── JWT helpers ──
@@ -70,6 +79,7 @@ const NAV_CONFIG = {
     { label: 'Feedback Queue',    page: 'tq-feedback-queue',   icon: '📝' },
     { label: 'Coaching Library',  page: 'tq-coaching-library', icon: '📚' },
     { label: 'Generate Coaching', page: 'tq-coaching-generate',icon: '🤖' },
+    { label: 'Snapshot Trends',   page: 'tq-snapshot-trend',   icon: '📸' },
   ],
   branch_manager: [
     { label: 'Branch Health',     page: 'bm-health',            icon: '💪' },

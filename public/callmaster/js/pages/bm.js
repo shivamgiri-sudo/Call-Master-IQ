@@ -64,25 +64,24 @@ const BM_PAGES = {
   'bm-team-performance': async function(preset) {
     const r = await CALLMASTER_API.post('/api/callmaster/bm/team-performance', { preset });
     const rows = r.data || [];
+    const cols = [
+      { key: 'employee_code',  label: 'Emp Code' },
+      { key: 'name',           label: 'Name' },
+      { key: 'process_name',   label: 'Process' },
+      { key: 'source_type',    label: 'Type',           render: v => `<span class="badge badge-${v === 'Inbound' ? 'blue' : 'violet'}">${v || '—'}</span>` },
+      { key: 'avg_score',      label: 'Avg CQ%',        render: v => v != null ? `<span class="td-mono">${Number(v).toFixed(1)}%</span>` : '—' },
+      { key: 'total_calls',    label: 'Calls',          render: v => Number(v || 0).toLocaleString() },
+      { key: 'critical_count', label: 'Critical',       render: v => Number(v || 0) > 0 ? `<span class="sev-critical">${v}</span>` : '0' },
+      { key: 'coaching_count', label: 'Open Coaching',  render: v => Number(v || 0) > 0 ? `<span class="badge badge-yellow">${v}</span>` : '0' },
+    ];
     return `
       ${pageHeader('Team Performance', 'Agent-level quality · ' + preset)}
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
         ${presetBar(preset, 'go.bind(null,"bm-team-performance")')}
+        ${exportBtn('Export CSV', `exportTableCsv(window._bmTeamCols, window._bmTeamRows, 'bm_team_performance_${preset}.csv')`)}
       </div>
-      ${table(
-        [
-          { key: 'employee_code',  label: 'Emp Code' },
-          { key: 'name',           label: 'Name' },
-          { key: 'process_name',   label: 'Process' },
-          { key: 'source_type',    label: 'Type',           render: v => `<span class="badge badge-${v === 'Inbound' ? 'blue' : 'violet'}">${v || '—'}</span>` },
-          { key: 'avg_score',      label: 'Avg CQ%',        render: v => v != null ? `<span class="td-mono">${Number(v).toFixed(1)}%</span>` : '—' },
-          { key: 'total_calls',    label: 'Calls',          render: v => Number(v || 0).toLocaleString() },
-          { key: 'critical_count', label: 'Critical',       render: v => Number(v || 0) > 0 ? `<span class="sev-critical">${v}</span>` : '0' },
-          { key: 'coaching_count', label: 'Open Coaching',  render: v => Number(v || 0) > 0 ? `<span class="badge badge-yellow">${v}</span>` : '0' },
-        ],
-        rows,
-        { emptyMsg: 'No team performance data for selected period' }
-      )}`;
+      <script>window._bmTeamCols=${JSON.stringify(cols.map(c=>({key:c.key,label:c.label})))};window._bmTeamRows=${JSON.stringify(rows)};</script>
+      ${table(cols, rows, { emptyMsg: 'No team performance data for selected period' })}`;
   },
 
   'bm-daily-sla': async function(preset) {
@@ -102,10 +101,17 @@ const BM_PAGES = {
   'bm-risk-calls': async function(preset) {
     const r = await CALLMASTER_API.post('/api/callmaster/bm/risk-calls', { preset });
     const rows = r.data || [];
+    const exportCols = [
+      { key: 'id', label: 'Call ID' }, { key: 'source_type', label: 'Type' },
+      { key: 'process_name', label: 'Process' }, { key: 'agent', label: 'Agent' },
+      { key: 'alert_severity', label: 'Severity' }, { key: 'call_date', label: 'Date' },
+    ];
     return `
       ${pageHeader('Risk Calls', 'High-risk calls requiring attention · ' + preset)}
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
         ${presetBar(preset, 'go.bind(null,"bm-risk-calls")')}
+        ${exportBtn('Export CSV', `exportTableCsv(${JSON.stringify(exportCols)}, ${JSON.stringify(rows)}, 'bm_risk_calls_${preset}.csv')`)}
+        ${exportBtn('Full Export', `downloadCsv('/api/callmaster/export/alerts?preset=${preset}','bm_alerts_${preset}.csv')`)}
       </div>
       ${table(
         [
