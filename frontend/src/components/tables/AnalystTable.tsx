@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { ArrowUpDown, Search } from 'lucide-react';
+import { ArrowUpDown, Download, Search } from 'lucide-react';
 import type { TopBottomAgentsData } from '../../api/types';
 import { fmtDate, fmtDec, fmtInt } from '../../utils/formatters';
 import EmptyState from '../states/EmptyState';
+import { downloadCsv, toCsv } from '../../utils/safeExport';
 
 interface AnalystTableProps {
   analysts: TopBottomAgentsData['analysts'];
@@ -42,6 +43,33 @@ export default function AnalystTable({ analysts, loading, onRowClick }: AnalystT
     else { setSortKey(k); setSortDir(k === 'agentName' ? 'asc' : 'asc'); }
   };
 
+  const exportVisible = () => {
+    const csv = toCsv(sorted.map(a => ({
+      agentName: a.agentName,
+      avgScore: a.avgScore,
+      totalCalls: a.totalCalls,
+      scoredCalls: a.scoredCalls,
+      highRiskCount: a.highRiskCount,
+      opportunities: a.opportunities,
+      pitchAttempts: a.pitchAttempts,
+      strongPitch: a.strongPitch,
+      disbursals: a.disbursals,
+      lastCallDate: a.lastCallDate,
+    })), [
+      { key: 'agentName', label: 'Analyst' },
+      { key: 'avgScore', label: 'Average score' },
+      { key: 'totalCalls', label: 'Total calls' },
+      { key: 'scoredCalls', label: 'Scored calls' },
+      { key: 'highRiskCount', label: 'High risk count' },
+      { key: 'opportunities', label: 'Opportunities' },
+      { key: 'pitchAttempts', label: 'Pitch attempts' },
+      { key: 'strongPitch', label: 'Strong pitch' },
+      { key: 'disbursals', label: 'Disbursals' },
+      { key: 'lastCallDate', label: 'Last call date' },
+    ]);
+    downloadCsv('call-master-analyst-visible.csv', csv);
+  };
+
   if (!loading && analysts.length === 0) {
     return <EmptyState title="No analysts" description="No analyst records in the selected window." />;
   }
@@ -59,6 +87,14 @@ export default function AnalystTable({ analysts, loading, onRowClick }: AnalystT
           />
         </div>
         <span className="text-[11px] uppercase tracking-wider text-ink-muted">{sorted.length} analyst{sorted.length === 1 ? '' : 's'}</span>
+        <button
+          onClick={exportVisible}
+          disabled={sorted.length === 0}
+          className="inline-flex items-center gap-2 rounded-lg border border-line-subtle bg-elevated/40 px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-ink-secondary transition-colors hover:border-line-strong hover:text-ink-primary disabled:opacity-40"
+        >
+          <Download size={13} />
+          CSV
+        </button>
       </div>
 
       <div className="overflow-x-auto">
@@ -78,7 +114,7 @@ export default function AnalystTable({ analysts, loading, onRowClick }: AnalystT
               <tr
                 key={`${a.agentName || 'unknown'}-${a.lastCallDate || 'no-date'}-${index}`}
                 onClick={() => onRowClick?.(a)}
-                className="cursor-pointer border-b border-line-subtle/60 text-sm text-ink-secondary transition-colors hover:bg-elevated/40"
+                className={`border-b border-line-subtle/60 text-sm text-ink-secondary transition-colors hover:bg-elevated/40 ${onRowClick ? 'cursor-pointer' : ''}`}
               >
                 <td className="px-4 py-3 font-medium text-ink-primary">{a.agentName}</td>
                 <td className={`px-4 py-3 text-right font-semibold ${scoreTone(a.avgScore)}`}>

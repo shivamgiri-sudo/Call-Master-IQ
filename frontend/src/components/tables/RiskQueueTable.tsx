@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { ArrowUpDown, Search } from 'lucide-react';
+import { ArrowUpDown, Download, Search } from 'lucide-react';
 import type { RiskQueueRecord } from '../../api/types';
 import { fmtDate, fmtDec } from '../../utils/formatters';
 import { priorityClass, qualityBandClass, riskBucketClass } from '../../utils/colors';
 import EmptyState from '../states/EmptyState';
+import { downloadCsv, toCsv } from '../../utils/safeExport';
 
 interface RiskQueueTableProps {
   records: RiskQueueRecord[];
@@ -47,6 +48,43 @@ export default function RiskQueueTable({ records, loading, onRowClick }: RiskQue
     else { setSortKey(k); setSortDir('desc'); }
   };
 
+  const exportVisible = () => {
+    const csv = toCsv(sorted.map(r => ({
+      id: r.id,
+      date: r.date,
+      analyst: r.analyst,
+      callType: r.callType,
+      journeyStage: r.journeyStage,
+      riskBucket: r.riskBucket,
+      riskLevel: r.riskLevel,
+      qualityScore: r.qualityScore,
+      qualityBand: r.qualityBand,
+      pitchStrength: r.pitchStrength,
+      leakage: r.leakage,
+      supportStatus: r.supportStatus,
+      actionPriority: r.actionPriority,
+      actionSla: r.actionSla,
+      actionOwner: r.actionOwner,
+    })), [
+      { key: 'id', label: 'Call ID' },
+      { key: 'date', label: 'Date' },
+      { key: 'analyst', label: 'Analyst' },
+      { key: 'callType', label: 'Call type' },
+      { key: 'journeyStage', label: 'Journey stage' },
+      { key: 'riskBucket', label: 'Risk bucket' },
+      { key: 'riskLevel', label: 'Risk level' },
+      { key: 'qualityScore', label: 'Quality score' },
+      { key: 'qualityBand', label: 'Quality band' },
+      { key: 'pitchStrength', label: 'Pitch strength' },
+      { key: 'leakage', label: 'Leakage' },
+      { key: 'supportStatus', label: 'Support status' },
+      { key: 'actionPriority', label: 'Action priority' },
+      { key: 'actionSla', label: 'Action SLA' },
+      { key: 'actionOwner', label: 'Action owner' },
+    ]);
+    downloadCsv('call-master-risk-visible.csv', csv);
+  };
+
   if (!loading && records.length === 0) {
     return <EmptyState title="No risk records" description="No high-priority risk triggers in the selected window." />;
   }
@@ -66,6 +104,14 @@ export default function RiskQueueTable({ records, loading, onRowClick }: RiskQue
         <span className="text-[11px] uppercase tracking-wider text-ink-muted">
           {sorted.length} record{sorted.length === 1 ? '' : 's'}
         </span>
+        <button
+          onClick={exportVisible}
+          disabled={sorted.length === 0}
+          className="inline-flex items-center gap-2 rounded-lg border border-line-subtle bg-elevated/40 px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-ink-secondary transition-colors hover:border-line-strong hover:text-ink-primary disabled:opacity-40"
+        >
+          <Download size={13} />
+          CSV
+        </button>
       </div>
 
       <div className="overflow-x-auto">

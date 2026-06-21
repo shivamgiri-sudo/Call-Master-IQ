@@ -1,4 +1,5 @@
-import { TrendingUp, AlertOctagon, ListChecks } from 'lucide-react';
+import { TrendingUp, ListChecks } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../layout/PageHeader';
 import GlobalFilters from '../components/filters/GlobalFilters';
 import ChartCard from '../components/charts/ChartCard';
@@ -16,6 +17,7 @@ import type { SalesFunnelStage } from '../api/types';
 
 export default function SalesFunnelIntelligence() {
   const { filters, toQuery } = useFilters();
+  const navigate = useNavigate();
 
   const funnel = useApi(() => getSalesFunnel(toQuery()), [filters]);
   const leakage = useApi(() => getLeakageReport(toQuery()), [filters]);
@@ -30,8 +32,7 @@ export default function SalesFunnelIntelligence() {
       : 0;
 
   const stageClicks = (stage: SalesFunnelStage) => {
-    // Pure UI feedback — would route to /evidence with a filter in a follow-up cycle.
-    console.info('Stage clicked:', stage.stage);
+    navigate(`/evidence?dimension=funnel&value=${encodeURIComponent(stage.stage)}`);
   };
 
   return (
@@ -189,5 +190,3 @@ function renderCountList(
   }
   return <LoadingSkeleton rows={4} />;
 }
-
-const _AlertOctagon = AlertOctagon; void _AlertOctagon;

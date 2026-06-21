@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Users, Trophy, ArrowDown, ArrowUp } from 'lucide-react';
+import { ClipboardCopy, Users, Trophy, ArrowDown, ArrowUp } from 'lucide-react';
 import PageHeader from '../layout/PageHeader';
 import GlobalFilters from '../components/filters/GlobalFilters';
 import ChartCard from '../components/charts/ChartCard';
 import KpiCard from '../components/cards/KpiCard';
 import AnalystTable from '../components/tables/AnalystTable';
-import EvidenceDrawer from '../components/evidence/EvidenceDrawer';
+import AnalystProfilePanel from '../components/analysts/AnalystProfilePanel';
 import LoadingSkeleton from '../components/states/LoadingSkeleton';
 import ErrorState from '../components/states/ErrorState';
 import UnsupportedState from '../components/states/UnsupportedState';
@@ -13,11 +13,12 @@ import { useApi } from '../utils/useApi';
 import { useFilters } from '../context/FiltersContext';
 import { getTopBottomAgents } from '../api/analyticsApi';
 import { fmtDec, fmtInt } from '../utils/formatters';
-import type { RiskQueueRecord } from '../api/types';
+import type { TopBottomAgentsData } from '../api/types';
+import { copySafeText } from '../utils/safeExport';
 
 export default function AnalystPerformance() {
   const { filters, toQuery } = useFilters();
-  const [open, setOpen] = useState<RiskQueueRecord | null>(null);
+  const [selectedAnalyst, setSelectedAnalyst] = useState<TopBottomAgentsData['analysts'][number] | null>(null);
 
   const top = useApi(() => getTopBottomAgents({ ...toQuery(), page: 1, limit: 100 }), [filters]);
 
@@ -29,6 +30,15 @@ export default function AnalystPerformance() {
 
   const bottom3 = sortedByScoreAsc.slice(0, 3);
   const top3 = sortedByScoreDesc.slice(0, 3);
+  const copyCoachingSummary = () => {
+    copySafeText([
+      'Call Master IQ Coaching Summary',
+      `Analysts returned: ${fmtInt(analysts.length)}`,
+      top3[0]?.agentName ? `Top analyst: ${top3[0].agentName} (${fmtDec(top3[0].avgScore, 1)})` : 'Top analyst: not returned',
+      bottom3[0]?.agentName ? `Coaching focus: ${bottom3[0].agentName} (${fmtDec(bottom3[0].avgScore, 1)})` : 'Coaching focus: not returned',
+      `High-risk occurrences: ${fmtInt(analysts.reduce((s, a) => s + (a.highRiskCount || 0), 0))}`,
+    ].join('\n'));
+  };
 
   return (
     <>
@@ -36,6 +46,15 @@ export default function AnalystPerformance() {
         eyebrow="Performance"
         title="Analyst Performance"
         subtitle="Top and bottom analysts, sortable by score / risk / volume."
+        actions={(
+          <button
+            onClick={copyCoachingSummary}
+            className="inline-flex items-center gap-2 rounded-xl border border-line-subtle bg-elevated/40 px-3 py-2 text-xs font-medium text-ink-secondary transition-colors hover:border-line-strong hover:text-ink-primary focus-ring"
+          >
+            <ClipboardCopy size={14} />
+            Copy coaching summary
+          </button>
+        )}
       />
       <GlobalFilters />
 
@@ -67,20 +86,20 @@ export default function AnalystPerformance() {
       </section>
 
       <section>
-        <ChartCard title="All analysts" subtitle="Search, sort, and click a row to view call list." loading={top.state.kind === 'loading'}>
-          {renderTable(top.state, analysts, setOpen)}
+        <ChartCard title="All analysts" subtitle="Search, sort, and click a row to view the analyst profile." loading={top.state.kind === 'loading'}>
+          {renderTable(top.state, analysts, setSelectedAnalyst)}
         </ChartCard>
       </section>
 
-      <EvidenceDrawer record={open} onClose={() => setOpen(null)} />
+      <AnalystProfilePanel analyst={selectedAnalyst} onClose={() => setSelectedAnalyst(null)} />
     </>
   );
 }
 
 function renderTable(
   state: ReturnType<typeof useApi<any>>['state'],
-  analysts: any[],
-  setOpen: (r: RiskQueueRecord) => void,
+  analysts: TopBottomAgentsData['analysts'],
+  setSelectedAnalyst: (a: TopBottomAgentsData['analysts'][number]) => void,
 ): JSX.Element {
   if (state.kind === 'ready' && state.result.kind === 'error') {
     return <ErrorState status={state.result.status} code={state.result.code} message={state.result.message} />;
@@ -92,15 +111,7 @@ function renderTable(
     return (
       <AnalystTable
         analysts={analysts}
-        onRowClick={a => setOpen({
-          id: String(a.agentName ?? 'unknown'),
-          analyst: String(a.agentName ?? 'Unknown'),
-          date: a.lastCallDate ?? '',
-          qualityScore: a.avgScore ?? 'N/A',
-          qualityBand: a.avgScore && a.avgScore >= 85 ? 'Excellent' : a.avgScore && a.avgScore >= 70 ? 'Good' : 'High Risk',
-          riskBucket: (a.highRiskCount || 0) > 0 ? 'High Priority Risk Trigger' : 'No Risk Flag',
-          insight: `${fmtInt(a.totalCalls)} calls · ${fmtInt(a.highRiskCount)} high-risk · ${fmtInt(a.opportunities)} opportunities`,
-        })}
+        onRowClick={setSelectedAnalyst}
         loading={false}
       />
     );

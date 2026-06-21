@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ShieldCheck, BarChart2, Activity, AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../layout/PageHeader';
 import GlobalFilters from '../components/filters/GlobalFilters';
 import ChartCard from '../components/charts/ChartCard';
@@ -18,6 +19,7 @@ import AnalystTable from '../components/tables/AnalystTable';
 
 export default function QualityIntelligence() {
   const { filters, toQuery } = useFilters();
+  const navigate = useNavigate();
   const [activeBand, setActiveBand] = useState<string | null>(null);
 
   const dist = useApi(() => getQualityDistribution(toQuery()), [filters]);
@@ -101,7 +103,9 @@ export default function QualityIntelligence() {
           {renderTrendChart(trend.state, trendData)}
         </div>
         <div>
-          {renderDistribution(dist.state, filteredBands, activeBand, setActiveBand)}
+          {renderDistribution(dist.state, filteredBands, activeBand, setActiveBand, band => {
+            navigate(`/evidence?dimension=qualityBand&value=${encodeURIComponent(band)}`);
+          })}
         </div>
       </section>
 
@@ -177,6 +181,7 @@ function renderDistribution(
   bands: Array<{ label: string; count: number }>,
   activeBand: string | null,
   setActiveBand: (b: string | null) => void,
+  openBandEvidence: (band: string) => void,
 ): JSX.Element {
   if (state.kind === 'loading') return <ChartCard title="Quality distribution" subtitle="Calls by quality band" loading />;
   if (state.kind === 'ready' && state.result.kind === 'error') {
@@ -213,7 +218,7 @@ function renderDistribution(
     >
       <QualityDistributionChart
         bands={bands}
-        onBandClick={b => setActiveBand(b.label === activeBand ? null : b.label)}
+        onBandClick={b => openBandEvidence(b.label)}
       />
     </ChartCard>
   );

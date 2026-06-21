@@ -329,6 +329,7 @@ export function insightMatches(row: EnrichedCallRow, dimension: string, value: s
   if (dimension === 'support') return row.supportStatus === value;
   if (dimension === 'callType') return row.callType === value;
   if (dimension === 'pitch') return row.pitchStrength === value;
+  if (dimension === 'qualityBand') return row.qualityBand === value;
   if (dimension === 'qualityType') return row.callType === value;
   if (dimension === 'action') return row.action.priority === value;
   if (dimension === 'funnel') {
@@ -350,6 +351,7 @@ export function drilldownTitle(dimension: string, value: string): string {
     support: 'Support Status Evidence',
     callType: 'Call Type Evidence',
     pitch: 'Pitch Strength Evidence',
+    qualityBand: 'Quality Band Evidence',
     qualityType: 'Quality Cohort Evidence',
     action: 'Action Queue Evidence',
     funnel: 'Funnel Stage Evidence',

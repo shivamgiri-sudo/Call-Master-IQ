@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Search, ListFilter } from 'lucide-react';
+import { ClipboardCopy, Search, ListFilter } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../layout/PageHeader';
 import GlobalFilters from '../components/filters/GlobalFilters';
 import ChartCard from '../components/charts/ChartCard';
@@ -13,6 +14,7 @@ import { useApi } from '../utils/useApi';
 import { useFilters } from '../context/FiltersContext';
 import { postDrilldown, getRiskQueue, getSensitiveWords } from '../api/analyticsApi';
 import type { RiskQueueRecord } from '../api/types';
+import { copySafeText } from '../utils/safeExport';
 
 const DIMENSIONS: Array<{ value: string; label: string }> = [
   { value: 'risk', label: 'Risk bucket' },
@@ -20,14 +22,16 @@ const DIMENSIONS: Array<{ value: string; label: string }> = [
   { value: 'support', label: 'Support status' },
   { value: 'callType', label: 'Call type' },
   { value: 'pitch', label: 'Pitch strength' },
+  { value: 'qualityBand', label: 'Quality band' },
   { value: 'qualityType', label: 'Quality cohort' },
   { value: 'funnel', label: 'Funnel stage' },
 ];
 
 export default function EvidenceDrilldown() {
   const { filters, toQuery } = useFilters();
-  const [dimension, setDimension] = useState(DIMENSIONS[0].value);
-  const [value, setValue] = useState('High Priority Risk Trigger');
+  const [searchParams] = useSearchParams();
+  const [dimension, setDimension] = useState(searchParams.get('dimension') || DIMENSIONS[0].value);
+  const [value, setValue] = useState(searchParams.get('value') || 'High Priority Risk Trigger');
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [open, setOpen] = useState<RiskQueueRecord | null>(null);
@@ -42,6 +46,17 @@ export default function EvidenceDrilldown() {
   const drillData = drill.state.kind === 'ready' && drill.state.result.kind === 'ok' ? drill.state.result.data : null;
   const fbData = fallback.state.kind === 'ready' && fallback.state.result.kind === 'ok' ? fallback.state.result.data : null;
   const sensitiveData = sensitive.state.kind === 'ready' && sensitive.state.result.kind === 'ok' ? sensitive.state.result.data : null;
+  const copyRiskSummary = () => {
+    copySafeText([
+      'Call Master IQ Risk Summary',
+      `Dimension: ${dimension}`,
+      `Value: ${value}`,
+      `Matching records: ${drillData?.total ?? 'not returned'}`,
+      `Fallback queue total: ${fbData?.total ?? 'not returned'}`,
+      `Sensitive incidents: ${sensitiveData?.totalIncidents ?? 'not returned'}`,
+      sensitiveData?.byTerm?.[0]?.term ? `Top sensitive term: ${sensitiveData.byTerm[0].term}` : 'Top sensitive term: not returned',
+    ].join('\n'));
+  };
 
   return (
     <>
@@ -49,6 +64,15 @@ export default function EvidenceDrilldown() {
         eyebrow="Evidence"
         title="Evidence Drilldown"
         subtitle="Filter the call list by any insight dimension. Snippets only — never raw transcripts."
+        actions={(
+          <button
+            onClick={copyRiskSummary}
+            className="inline-flex items-center gap-2 rounded-xl border border-line-subtle bg-elevated/40 px-3 py-2 text-xs font-medium text-ink-secondary transition-colors hover:border-line-strong hover:text-ink-primary focus-ring"
+          >
+            <ClipboardCopy size={14} />
+            Copy risk summary
+          </button>
+        )}
       />
       <GlobalFilters />
 

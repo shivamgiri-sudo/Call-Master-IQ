@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import {
   Phone, ShieldCheck, AlertTriangle, TrendingUp, Target, Award, Banknote,
-  Users, ArrowUpRight, ArrowDownRight, ClipboardList, Gauge, Route,
+  Users, ArrowUpRight, ArrowDownRight, ClipboardCopy, ClipboardList, Gauge, Route,
 } from 'lucide-react';
 import PageHeader from '../layout/PageHeader';
 import GlobalFilters from '../components/filters/GlobalFilters';
@@ -30,6 +30,7 @@ import {
 import { fmtDec, fmtInt, fmtPct, shortId } from '../utils/formatters';
 import EvidenceDrawer from '../components/evidence/EvidenceDrawer';
 import type { RiskQueueRecord } from '../api/types';
+import { copySafeText } from '../utils/safeExport';
 
 export default function ExecutiveCommandCenter() {
   const { filters, toQuery } = useFilters();
@@ -83,6 +84,21 @@ export default function ExecutiveCommandCenter() {
   const leakageCount = quality?.opportunities !== undefined && quality?.pitched !== undefined
     ? Math.max(quality.opportunities - quality.pitched, 0)
     : null;
+  const openEvidence = (dimension: string, value: string) => {
+    navigate(`/evidence?dimension=${encodeURIComponent(dimension)}&value=${encodeURIComponent(value)}`);
+  };
+  const copyExecutiveSummary = () => {
+    copySafeText([
+      'Call Master IQ Executive Summary',
+      `Total calls: ${fmtInt(quality?.totalCalls ?? 0)}`,
+      `Average quality: ${quality?.avgQuality === null || quality?.avgQuality === undefined ? 'not returned' : fmtDec(quality.avgQuality, 1)}`,
+      `High risk triggers: ${fmtInt(quality?.highRiskTriggers ?? 0)}`,
+      `Opportunities: ${fmtInt(quality?.opportunities ?? 0)}`,
+      `Pitch rate: ${pitchRate === null ? 'not returned' : fmtPct(pitchRate, 0)}`,
+      lowestAnalyst?.agentName ? `Coaching focus: ${lowestAnalyst.agentName} (${fmtDec(lowestAnalyst.avgScore, 1)})` : 'Coaching focus: not returned',
+      topRiskProcess ? `Top risk process: ${topRiskProcess.process}` : 'Top risk process: not returned',
+    ].join('\n'));
+  };
 
   return (
     <>
@@ -90,9 +106,18 @@ export default function ExecutiveCommandCenter() {
         eyebrow="Executive"
         title="Command Center"
         subtitle="Real-time visibility into quality, sales, coaching, and risk across every process."
-        actions={source ? (
-          <span className="pill pill-violet">Source · {source}</span>
-        ) : null}
+        actions={(
+          <div className="flex flex-wrap items-center gap-2">
+            {source ? <span className="pill pill-violet">Source · {source}</span> : null}
+            <button
+              onClick={copyExecutiveSummary}
+              className="inline-flex items-center gap-2 rounded-xl border border-line-subtle bg-elevated/40 px-3 py-2 text-xs font-medium text-ink-secondary transition-colors hover:border-line-strong hover:text-ink-primary focus-ring"
+            >
+              <ClipboardCopy size={14} />
+              Copy summary
+            </button>
+          </div>
+        )}
       />
 
       <GlobalFilters />
@@ -158,7 +183,7 @@ export default function ExecutiveCommandCenter() {
           icon: <AlertTriangle size={16} />,
           tone: (data.highRiskTriggers ?? 0) > 0 ? 'bad' : 'neutral',
           hint: data.mediumFlags !== undefined ? `${fmtInt(data.mediumFlags)} medium flags` : undefined,
-          onClick: () => navigate('/risk'),
+          onClick: () => openEvidence('risk', 'High Priority Risk Trigger'),
         }))}
 
         {renderKpi(splitKpis.state, (data) => ({
@@ -178,6 +203,7 @@ export default function ExecutiveCommandCenter() {
           icon: <Award size={16} />,
           tone: 'good',
           hint: data.pitched !== undefined ? `${fmtInt(data.pitched)} pitches attempted` : undefined,
+          onClick: () => openEvidence('funnel', 'Strong Pitch'),
         }))}
 
         {renderKpi(splitKpis.state, (data) => ({
@@ -186,6 +212,7 @@ export default function ExecutiveCommandCenter() {
           icon: <Banknote size={16} />,
           tone: 'good',
           hint: 'Successful outcomes',
+          onClick: () => openEvidence('funnel', 'Disbursal Signal'),
         }))}
 
         {renderKpi(compliance.state, (data) => ({
@@ -216,6 +243,7 @@ export default function ExecutiveCommandCenter() {
             ? `${fmtInt(quality.highRiskTriggers)} high-risk triggers are active. Start with the risk queue and evidence review.`
             : 'No high-risk trigger count returned for the selected window.'}
           meta={topRiskProcess ? `Top process: ${topRiskProcess.process}` : 'Process risk not available'}
+          onClick={() => openEvidence('risk', 'High Priority Risk Trigger')}
         />
         <InsightCard
           tone={trendDelta === null ? 'neutral' : trendDelta >= 0 ? 'good' : 'warn'}
@@ -236,6 +264,7 @@ export default function ExecutiveCommandCenter() {
               ? `${fmtInt(leakageCount)} opportunities did not receive a pitch in this window.`
               : 'Every returned opportunity has a pitch attempt signal.'}
           meta={pitchRate === null ? 'Pitch rate unavailable' : `Pitch rate ${fmtPct(pitchRate, 0)}`}
+          onClick={() => openEvidence('funnel', 'Sales / Mixed Opportunities')}
         />
         <InsightCard
           tone={toneForAvg(lowestAnalyst?.avgScore)}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertOctagon, ShieldAlert } from 'lucide-react';
+import { AlertOctagon, ShieldAlert, X } from 'lucide-react';
 import PageHeader from '../layout/PageHeader';
 import GlobalFilters from '../components/filters/GlobalFilters';
 import ChartCard from '../components/charts/ChartCard';
@@ -15,15 +15,21 @@ import { useApi } from '../utils/useApi';
 import { useFilters } from '../context/FiltersContext';
 import { getRiskQueue, getRiskByProcess, getComplianceSummary } from '../api/analyticsApi';
 import { fmtInt } from '../utils/formatters';
-import type { RiskQueueRecord } from '../api/types';
+import type { RiskByProcessRow, RiskQueueRecord } from '../api/types';
 
 export default function RiskComplianceQueue() {
   const { filters, toQuery } = useFilters();
   const [page, setPage] = useState(1);
   const [limit] = useState(25);
   const [open, setOpen] = useState<RiskQueueRecord | null>(null);
+  const [selectedProcess, setSelectedProcess] = useState<string | null>(null);
 
-  const queue = useApi(() => getRiskQueue({ ...toQuery(), page, limit }), [filters, page]);
+  const queue = useApi(() => getRiskQueue({
+    ...toQuery(),
+    ...(selectedProcess ? { process_name: selectedProcess } : {}),
+    page,
+    limit,
+  }), [filters, page, selectedProcess]);
   const byProc = useApi(() => getRiskByProcess(toQuery()), [filters]);
   const compliance = useApi(() => getComplianceSummary(toQuery()), [filters]);
 
@@ -90,16 +96,30 @@ export default function RiskComplianceQueue() {
           loading={byProc.state.kind === 'loading'}
           empty={procData ? procData.rows.length === 0 : false}
         >
-          {renderByProc(byProc.state, procData)}
+          {renderByProc(byProc.state, procData, row => {
+            if (procData?.dimension === 'process_name') {
+              setSelectedProcess(row.process);
+              setPage(1);
+            }
+          })}
         </ChartCard>
       </section>
 
       <section>
         <ChartCard
           title="Risk queue"
-          subtitle="Paginated. Click a row for evidence."
+          subtitle={selectedProcess ? `Filtered by process: ${selectedProcess}` : 'Paginated. Click a row for evidence.'}
           loading={queue.state.kind === 'loading'}
           empty={false}
+          actions={selectedProcess ? (
+            <button
+              onClick={() => { setSelectedProcess(null); setPage(1); }}
+              className="inline-flex items-center gap-2 rounded-lg border border-line-subtle bg-elevated/40 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-ink-secondary hover:border-line-strong hover:text-ink-primary"
+            >
+              <X size={13} />
+              Clear process
+            </button>
+          ) : null}
         >
           {renderQueue(queue.state, queueData, setOpen)}
         </ChartCard>
@@ -135,6 +155,7 @@ export default function RiskComplianceQueue() {
 function renderByProc(
   state: ReturnType<typeof useApi<any>>['state'],
   data: { rows: any[]; dimension: 'category' | 'process_name' } | null,
+  onProcessClick: (row: RiskByProcessRow) => void,
 ): JSX.Element {
   if (state.kind === 'ready' && state.result.kind === 'error') {
     return <ErrorState status={state.result.status} code={state.result.code} message={state.result.message} />;
@@ -143,7 +164,13 @@ function renderByProc(
     return <UnsupportedState reason={state.result.reason} />;
   }
   if (state.kind === 'ready' && state.result.kind === 'ok') {
-    return <RiskByProcessChart rows={state.result.data.rows} dimension={state.result.data.dimension} />;
+    return (
+      <RiskByProcessChart
+        rows={state.result.data.rows}
+        dimension={state.result.data.dimension}
+        onProcessClick={onProcessClick}
+      />
+    );
   }
   return <LoadingSkeleton variant="chart" />;
 }
