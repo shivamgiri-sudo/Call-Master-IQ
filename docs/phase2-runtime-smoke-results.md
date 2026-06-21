@@ -1,6 +1,6 @@
 # Phase 2 Runtime Smoke Test Results
 
-**Generated:** 2026-06-21T18:05:34.834Z
+**Generated:** 2026-06-21T19:07:51.525Z
 **Base URL:** http://localhost:5050
 **Test User:** (SMOKE_BEARER_TOKEN)
 **Date Range:** 2026-05-22 to 2026-06-21
@@ -26,21 +26,21 @@
 
 | # | Endpoint | Method | HTTP | Success | Source | Data Status | Total ms |
 |---|----------|--------|------|---------|--------|-------------|----------|
-| 1 | /api/analytics/split-kpis | GET | 200 | true | finnable | ✅ Non-empty | 733 |
+| 1 | /api/analytics/split-kpis | GET | 200 | true | finnable | ✅ Non-empty | 366 |
 | 2 | /api/analytics/sales-intelligence | GET | 200 | true | finnable | ✅ Non-empty | 3 |
 | 3 | /api/analytics/sales-funnel | GET | 200 | true | finnable | ✅ Non-empty | 1 |
-| 4 | /api/analytics/leakage-report | GET | 200 | true | finnable | ✅ Non-empty | 3 |
-| 5 | /api/analytics/risk-queue | GET | 200 | true | finnable | ✅ Non-empty | 313 |
-| 6 | /api/analytics/tni-heatmap | GET | 200 | true | finnable | ✅ Non-empty | 263 |
+| 4 | /api/analytics/leakage-report | GET | 200 | true | finnable | ✅ Non-empty | 2 |
+| 5 | /api/analytics/risk-queue | GET | 200 | true | finnable | ✅ Non-empty | 77 |
+| 6 | /api/analytics/tni-heatmap | GET | 200 | true | finnable | ✅ Non-empty | 137 |
 | 7 | /api/analytics/drilldown | POST | 200 | true | finnable | ✅ Non-empty | 1 |
 | 8 | /api/analytics/compliance-summary | GET | 200 | true | finnable | ✅ Non-empty | 3 |
 | 9 | /api/analytics/journey-summary | GET | 200 | true | finnable | ✅ Non-empty | 4 |
-| 10 | /api/analytics/quality-distribution | GET | 200 | true | finnable | ✅ Non-empty | 20 |
-| 11 | /api/analytics/top-bottom-agents | GET | 200 | true | finnable | ✅ Non-empty | 4 |
-| 12 | /api/analytics/sensitive-words | GET | 200 | true | finnable | ✅ Non-empty | 435 |
-| 13 | /api/analytics/risk-by-process | GET | 200 | true | finnable | ✅ Non-empty | 3 |
-| 14 | /api/analytics/analyst-daily-trend | GET | 200 | true | finnable | ✅ Non-empty | 428 |
-| 15 | /api/analytics/parameter-trend | GET | 200 | true | finnable | ✅ Non-empty | 9 |
+| 10 | /api/analytics/quality-distribution | GET | 200 | true | finnable | ✅ Non-empty | 23 |
+| 11 | /api/analytics/top-bottom-agents | GET | 200 | true | finnable | ✅ Non-empty | 5 |
+| 12 | /api/analytics/sensitive-words | GET | 200 | true | finnable | ✅ Non-empty | 114 |
+| 13 | /api/analytics/risk-by-process | GET | 200 | true | finnable | ✅ Non-empty | 4 |
+| 14 | /api/analytics/analyst-daily-trend | GET | 200 | true | finnable | ✅ Non-empty | 143 |
+| 15 | /api/analytics/parameter-trend | GET | 200 | true | finnable | ✅ Non-empty | 16 |
 
 ## Detailed Results
 
@@ -53,7 +53,7 @@
 - **Source:** finnable
 - **From:** 2026-05-22
 - **To:** 2026-06-21
-- **Total ms:** 733
+- **Total ms:** 366
 
 ### 2. GET /api/analytics/sales-intelligence
 
@@ -86,7 +86,7 @@
 - **Source:** finnable
 - **From:** 2026-05-22
 - **To:** 2026-06-21
-- **Total ms:** 3
+- **Total ms:** 2
 
 ### 5. GET /api/analytics/risk-queue
 
@@ -97,7 +97,7 @@
 - **Source:** finnable
 - **From:** 2026-05-22
 - **To:** 2026-06-21
-- **Total ms:** 313
+- **Total ms:** 77
 
 ### 6. GET /api/analytics/tni-heatmap
 
@@ -108,7 +108,7 @@
 - **Source:** finnable
 - **From:** 2026-05-22
 - **To:** 2026-06-21
-- **Total ms:** 263
+- **Total ms:** 137
 
 ### 7. POST /api/analytics/drilldown
 
@@ -152,7 +152,7 @@
 - **Source:** finnable
 - **From:** 2026-05-22
 - **To:** 2026-06-21
-- **Total ms:** 20
+- **Total ms:** 23
 
 ### 11. GET /api/analytics/top-bottom-agents
 
@@ -163,7 +163,7 @@
 - **Source:** finnable
 - **From:** 2026-05-22
 - **To:** 2026-06-21
-- **Total ms:** 4
+- **Total ms:** 5
 
 ### 12. GET /api/analytics/sensitive-words
 
@@ -174,7 +174,7 @@
 - **Source:** finnable
 - **From:** 2026-05-22
 - **To:** 2026-06-21
-- **Total ms:** 435
+- **Total ms:** 114
 
 ### 13. GET /api/analytics/risk-by-process
 
@@ -185,7 +185,7 @@
 - **Source:** finnable
 - **From:** 2026-05-22
 - **To:** 2026-06-21
-- **Total ms:** 3
+- **Total ms:** 4
 
 ### 14. GET /api/analytics/analyst-daily-trend
 
@@ -196,7 +196,7 @@
 - **Source:** finnable
 - **From:** 2026-05-22
 - **To:** 2026-06-21
-- **Total ms:** 428
+- **Total ms:** 143
 
 ### 15. GET /api/analytics/parameter-trend
 
@@ -207,5 +207,5 @@
 - **Source:** finnable
 - **From:** 2026-05-22
 - **To:** 2026-06-21
-- **Total ms:** 9
+- **Total ms:** 16
 

@@ -2,6 +2,25 @@ import { ClipboardCopy, Target, TrendingUp, User2, X } from 'lucide-react';
 import type { TopBottomAgentsData } from '../../api/types';
 import { fmtDate, fmtDec, fmtInt, fmtPct } from '../../utils/formatters';
 import { copySafeText } from '../../utils/safeExport';
+import { useFilters } from '../../context/FiltersContext';
+import { useApi } from '../../utils/useApi';
+import {
+  getAnalystCoaching,
+  getAnalystEvidence,
+  getAnalystSummary,
+  getAnalystTrend,
+  type AnalystCoachingData,
+  type AnalystEvidenceData,
+  type AnalystSummaryData,
+  type AnalystTrendData,
+} from '../../api/analystApi';
+import ChartCard from '../charts/ChartCard';
+import TrendLineChart from '../charts/TrendLineChart';
+import RiskQueueTable from '../tables/RiskQueueTable';
+import LoadingSkeleton from '../states/LoadingSkeleton';
+import ErrorState from '../states/ErrorState';
+import UnsupportedState from '../states/UnsupportedState';
+import EmptyState from '../states/EmptyState';
 
 type Analyst = TopBottomAgentsData['analysts'][number];
 
@@ -11,22 +30,37 @@ interface AnalystProfilePanelProps {
 }
 
 export default function AnalystProfilePanel({ analyst, onClose }: AnalystProfilePanelProps) {
+  const { filters, toQuery } = useFilters();
+  const analystId = analyst?.agentName || '';
+  const emptyResult: any = { kind: 'empty', meta: { source: 'generic', cacheHit: false, queryMs: 0, totalMs: 0, from: '', to: '' } };
+  const summaryApi = useApi<AnalystSummaryData>(() => analystId ? getAnalystSummary(analystId, toQuery()) : Promise.resolve(emptyResult), [filters, analystId]);
+  const trendApi = useApi<AnalystTrendData>(() => analystId ? getAnalystTrend(analystId, toQuery()) : Promise.resolve(emptyResult), [filters, analystId]);
+  const evidenceApi = useApi<AnalystEvidenceData>(() => analystId ? getAnalystEvidence(analystId, { ...toQuery(), limit: 20, offset: 0 }) : Promise.resolve(emptyResult), [filters, analystId]);
+  const coachingApi = useApi<AnalystCoachingData>(() => analystId ? getAnalystCoaching(analystId, toQuery()) : Promise.resolve(emptyResult), [filters, analystId]);
+
   if (!analyst) return null;
 
-  const pitchRate = analyst.opportunities ? (analyst.pitchAttempts || 0) / analyst.opportunities : null;
-  const strongPitchRate = analyst.pitchAttempts ? (analyst.strongPitch || 0) / analyst.pitchAttempts : null;
-  const riskRate = analyst.totalCalls ? (analyst.highRiskCount || 0) / analyst.totalCalls : null;
-  const weakness = getWeakness(analyst);
-  const recommendation = getRecommendation(analyst);
+  const liveSummary = summaryApi.state.kind === 'ready' && summaryApi.state.result.kind === 'ok'
+    ? summaryApi.state.result.data.summary
+    : null;
+  const current = liveSummary || analyst;
+  const liveCoaching = coachingApi.state.kind === 'ready' && coachingApi.state.result.kind === 'ok'
+    ? coachingApi.state.result.data
+    : null;
+  const pitchRate = current.opportunities ? (current.pitchAttempts || 0) / current.opportunities : null;
+  const strongPitchRate = current.pitchAttempts ? (current.strongPitch || 0) / current.pitchAttempts : null;
+  const riskRate = current.totalCalls ? (current.highRiskCount || 0) / current.totalCalls : null;
+  const weakness = liveCoaching?.weaknesses?.[0]?.parameter || getWeakness(current);
+  const recommendation = liveCoaching?.recommendations?.[0] || getRecommendation(current);
 
   const copyCoachingSummary = () => {
     copySafeText([
       'Call Master IQ Coaching Summary',
       `Analyst: ${analyst.agentName || 'not returned'}`,
-      `Total calls: ${fmtInt(analyst.totalCalls)}`,
-      `Average quality: ${analyst.avgScore === null || analyst.avgScore === undefined ? 'not returned' : fmtDec(analyst.avgScore, 1)}`,
-      `High-risk count: ${fmtInt(analyst.highRiskCount)}`,
-      `Opportunities: ${fmtInt(analyst.opportunities)}`,
+      `Total calls: ${fmtInt(current.totalCalls)}`,
+      `Average quality: ${current.avgScore === null || current.avgScore === undefined ? 'not returned' : fmtDec(current.avgScore, 1)}`,
+      `High-risk count: ${fmtInt(current.highRiskCount)}`,
+      `Opportunities: ${fmtInt(current.opportunities)}`,
       `Pitch rate: ${pitchRate === null ? 'not returned' : fmtPct(pitchRate, 0)}`,
       `Recommended coaching: ${recommendation}`,
     ].join('\n'));
@@ -64,9 +98,9 @@ export default function AnalystProfilePanel({ analyst, onClose }: AnalystProfile
       </header>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Total calls" value={fmtInt(analyst.totalCalls)} />
-        <Metric label="Average quality" value={analyst.avgScore === null || analyst.avgScore === undefined ? '—' : fmtDec(analyst.avgScore, 1)} tone={scoreTone(analyst.avgScore)} />
-        <Metric label="High risk" value={fmtInt(analyst.highRiskCount)} tone={(analyst.highRiskCount || 0) > 0 ? 'bad' : 'good'} />
+        <Metric label="Total calls" value={fmtInt(current.totalCalls)} />
+        <Metric label="Average quality" value={current.avgScore === null || current.avgScore === undefined ? '—' : fmtDec(current.avgScore, 1)} tone={scoreTone(current.avgScore)} />
+        <Metric label="High risk" value={fmtInt(current.highRiskCount)} tone={(current.highRiskCount || 0) > 0 ? 'bad' : 'good'} />
         <Metric label="Pitch rate" value={pitchRate === null ? '—' : fmtPct(pitchRate, 0)} tone={pitchRate === null ? 'neutral' : pitchRate >= 0.7 ? 'good' : 'warn'} />
       </div>
 
@@ -76,10 +110,10 @@ export default function AnalystProfilePanel({ analyst, onClose }: AnalystProfile
             <TrendingUp size={15} className="text-blue" />
             Sales indicators
           </div>
-          <Field label="Opportunities" value={fmtInt(analyst.opportunities)} />
-          <Field label="Pitch attempts" value={fmtInt(analyst.pitchAttempts)} />
+          <Field label="Opportunities" value={fmtInt(current.opportunities)} />
+          <Field label="Pitch attempts" value={fmtInt(current.pitchAttempts)} />
           <Field label="Strong pitch rate" value={strongPitchRate === null ? '—' : fmtPct(strongPitchRate, 0)} />
-          <Field label="Disbursals" value={fmtInt(analyst.disbursals)} />
+          <Field label="Disbursals" value={fmtInt(current.disbursals)} />
         </div>
 
         <div className="rounded-xl border border-line-subtle bg-elevated/35 p-4">
@@ -96,13 +130,42 @@ export default function AnalystProfilePanel({ analyst, onClose }: AnalystProfile
         <div className="rounded-xl border border-line-subtle bg-elevated/35 p-4">
           <div className="mb-3 text-sm font-semibold text-ink-primary">Evidence and trend</div>
           <Field label="Risk rate" value={riskRate === null ? '—' : fmtPct(riskRate, 0)} />
-          <div className="mt-3 rounded-lg border border-warn/25 bg-warn/10 p-3 text-xs leading-relaxed text-warn">
-            Analyst-specific evidence list and trend endpoint are not available yet. Showing returned summary fields only.
-          </div>
+          <Field label="Live detail" value={summaryApi.state.kind === 'ready' && summaryApi.state.result.kind === 'ok' ? 'Available' : 'Pending / unavailable'} />
         </div>
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <ChartCard title="Analyst trend" subtitle="Live analyst-specific quality and volume trend." loading={trendApi.state.kind === 'loading'}>
+          {renderTrend(trendApi.state)}
+        </ChartCard>
+        <ChartCard title="Analyst evidence" subtitle="Masked evidence records only. No raw transcript." loading={evidenceApi.state.kind === 'loading'}>
+          {renderEvidence(evidenceApi.state)}
+        </ChartCard>
       </div>
     </section>
   );
+}
+
+function renderTrend(state: ReturnType<typeof useApi<any>>['state']) {
+  if (state.kind === 'ready' && state.result.kind === 'error') return <ErrorState status={state.result.status} code={state.result.code} message={state.result.message} />;
+  if (state.kind === 'ready' && state.result.kind === 'unsupported') return <UnsupportedState reason={state.result.reason} />;
+  if (state.kind === 'ready' && state.result.kind === 'ok') {
+    const trend = state.result.data.trend || [];
+    if (trend.length === 0) return <EmptyState title="No analyst trend" description="No trend points returned for this analyst and filter." />;
+    return <TrendLineChart data={trend} series={[{ key: 'avgScore', label: 'Avg Quality', color: '#9D7BFF' }, { key: 'totalCalls', label: 'Calls', color: '#38E1FF' }]} />;
+  }
+  return <LoadingSkeleton variant="chart" />;
+}
+
+function renderEvidence(state: ReturnType<typeof useApi<any>>['state']) {
+  if (state.kind === 'ready' && state.result.kind === 'error') return <ErrorState status={state.result.status} code={state.result.code} message={state.result.message} />;
+  if (state.kind === 'ready' && state.result.kind === 'unsupported') return <UnsupportedState reason={state.result.reason} />;
+  if (state.kind === 'ready' && state.result.kind === 'ok') {
+    const records = state.result.data.records || [];
+    if (records.length === 0) return <EmptyState title="No analyst evidence" description="No risk, leakage, or coaching evidence returned for this analyst." />;
+    return <RiskQueueTable records={records} loading={false} />;
+  }
+  return <LoadingSkeleton variant="table" rows={4} />;
 }
 
 function getWeakness(analyst: Analyst): string {

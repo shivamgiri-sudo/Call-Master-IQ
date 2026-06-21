@@ -14,6 +14,10 @@ router.use(jwtAuth);
 router.use(loadUserScope);
 
 // Phase 2 approved analytics extension endpoints
+router.get('/analysts/:analystId/summary', controller.getAnalystSummary);
+router.get('/analysts/:analystId/trend', controller.getAnalystTrend);
+router.get('/analysts/:analystId/evidence', controller.getAnalystEvidence);
+router.get('/analysts/:analystId/coaching', controller.getAnalystCoaching);
 router.get('/filter-options', controller.getFilterOptions);
 router.get('/split-kpis', controller.getSplitKPIs);
 router.get('/sales-intelligence', controller.getSalesIntelligence);

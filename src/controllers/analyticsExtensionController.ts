@@ -271,3 +271,54 @@ export async function getParameterTrend(req: Request, res: Response): Promise<vo
     handleError(err, res);
   }
 }
+
+export async function getAnalystSummary(req: Request, res: Response): Promise<void> {
+  try {
+    const result = await service.getAnalystSummary(buildAnalystFilter(req), String(req.params.analystId));
+    res.json(result);
+  } catch (err: any) {
+    handleError(err, res);
+  }
+}
+
+export async function getAnalystTrend(req: Request, res: Response): Promise<void> {
+  try {
+    const result = await service.getAnalystTrend(buildAnalystFilter(req), String(req.params.analystId));
+    res.json(result);
+  } catch (err: any) {
+    handleError(err, res);
+  }
+}
+
+export async function getAnalystEvidence(req: Request, res: Response): Promise<void> {
+  try {
+    const result = await service.getAnalystEvidence(buildAnalystFilter(req), String(req.params.analystId));
+    res.json(result);
+  } catch (err: any) {
+    handleError(err, res);
+  }
+}
+
+export async function getAnalystCoaching(req: Request, res: Response): Promise<void> {
+  try {
+    const result = await service.getAnalystCoaching(buildAnalystFilter(req), String(req.params.analystId));
+    res.json(result);
+  } catch (err: any) {
+    handleError(err, res);
+  }
+}
+
+function buildAnalystFilter(req: Request): service.AnalyticsExtensionFilter {
+  return {
+    scope: req.scopeFilter || {},
+    client_id: (req.query.client_id || req.query.clientId) as string,
+    process_name: (req.query.process_name || req.query.process) as string,
+    business_lob: req.query.business_lob as string,
+    branch_short_name: (req.query.branch_short_name || req.query.branch) as string,
+    source_type: (req.query.source_type || req.query.sourceType) as string,
+    from: req.query.from as string,
+    to: req.query.to as string,
+    limit: Number(req.query.limit) || undefined,
+    offset: Number(req.query.offset) || undefined,
+  };
+}

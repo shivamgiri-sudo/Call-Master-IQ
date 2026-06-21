@@ -1,11 +1,17 @@
 import {
   Activity, CheckCircle2, Filter, LockKeyhole, Route, Search, ShieldCheck, Users,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import PageHeader from '../layout/PageHeader';
 import { useAuth } from '../context/AuthContext';
 import { getDisplayName, getDefaultRouteForRole, getUserRole, ROLES } from '../routes/roleMap';
+import type { AppRole } from '../routes/roleMap';
 import { getPermissions, hasPermission, ROLE_PERMISSIONS, ROUTE_PERMISSIONS } from '../routes/permissions';
+import { useApi } from '../utils/useApi';
+import ErrorState from '../components/states/ErrorState';
+import LoadingSkeleton from '../components/states/LoadingSkeleton';
+import EmptyState from '../components/states/EmptyState';
+import { getAdminPermissions, getAdminRoleMatrix, getAdminRoles, getAdminUsers } from '../api/adminApi';
 
 const ROUTE_LABELS: Record<string, string> = {
   '/command-center': 'Command Center',
@@ -27,11 +33,17 @@ export default function AdminPanel() {
   const routeEntries = Object.entries(ROUTE_PERMISSIONS);
   const [userSearch, setUserSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
-  const userManagementAvailable = false;
-  const matchingRoles = useMemo(() => {
-    const q = userSearch.trim().toLowerCase();
-    return ROLES.filter(item => (roleFilter === 'ALL' || item === roleFilter) && (!q || item.toLowerCase().includes(q)));
-  }, [roleFilter, userSearch]);
+  const users = useApi(() => getAdminUsers({
+    search: userSearch || undefined,
+    role: roleFilter === 'ALL' ? undefined : roleFilter,
+    limit: 100,
+  }), [userSearch, roleFilter]);
+  const roles = useApi(() => getAdminRoles(), []);
+  const permissionsApi = useApi(() => getAdminPermissions(), []);
+  const roleMatrix = useApi(() => getAdminRoleMatrix(), []);
+  const matrixRows = roleMatrix.state.kind === 'ready' && roleMatrix.state.result.kind === 'ok'
+    ? roleMatrix.state.result.data.roles
+    : [];
 
   return (
     <>
@@ -65,13 +77,15 @@ export default function AdminPanel() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line-subtle/70">
-                {ROLES.map(item => {
-                  const rolePermissions = ROLE_PERMISSIONS[item] ?? [];
-                  const accessibleRoutes = routeEntries.filter(([, permission]) => hasPermission(item, permission));
+                {(matrixRows.length ? matrixRows.map(r => r.role) : ROLES).map(item => {
+                  const liveMatrix = matrixRows.find(r => r.role === item);
+                  const appRole = item as AppRole;
+                  const rolePermissions = liveMatrix?.permissions ?? ROLE_PERMISSIONS[appRole] ?? [];
+                  const accessibleRoutes = routeEntries.filter(([, permission]) => hasPermission(appRole, permission));
                   return (
                     <tr key={item} className="text-ink-secondary">
                       <td className="whitespace-nowrap py-3 pr-4 font-medium text-ink-primary">{item}</td>
-                      <td className="whitespace-nowrap py-3 pr-4 font-mono text-[11px]">{getDefaultRouteForRole(item)}</td>
+                      <td className="whitespace-nowrap py-3 pr-4 font-mono text-[11px]">{getDefaultRouteForRole(appRole)}</td>
                       <td className="whitespace-nowrap py-3 pr-4">{rolePermissions.length}</td>
                       <td className="py-3">
                         <div className="flex max-w-xl flex-wrap gap-1.5">
@@ -156,12 +170,8 @@ export default function AdminPanel() {
               </select>
             </div>
           </div>
-          <div className="mt-4 rounded-xl border border-warn/25 bg-warn/10 p-4">
-            <div className="text-sm font-semibold text-warn">User management backend API not available yet.</div>
-            <p className="mt-2 text-xs leading-relaxed text-ink-muted">
-              This screen is ready for search, role filter, role badges, access level, and active/inactive status once a safe read-only users endpoint is added.
-              No dummy users, passwords, tokens, or secrets are displayed.
-            </p>
+          <div className="mt-4">
+            {renderUserDirectory(users.state)}
           </div>
         </div>
 
@@ -171,25 +181,30 @@ export default function AdminPanel() {
             <h3 className="text-sm font-semibold text-ink-primary">Permission Explanation</h3>
           </header>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {matchingRoles.map(item => {
-              const rolePermissions = ROLE_PERMISSIONS[item] ?? [];
-              const routeCount = routeEntries.filter(([, permission]) => hasPermission(item, permission)).length;
+            {(roles.state.kind === 'ready' && roles.state.result.kind === 'ok' ? roles.state.result.data.roles : []).map(item => {
+              const rolePermissions = item.permissions ?? [];
+              const appRole = item.role as AppRole;
+              const routeCount = routeEntries.filter(([, permission]) => hasPermission(appRole, permission)).length;
               return (
-                <div key={item} className="rounded-xl border border-line-subtle bg-elevated/35 p-3">
+                <div key={item.role} className="rounded-xl border border-line-subtle bg-elevated/35 p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium text-ink-primary">{item}</span>
+                    <span className="truncate text-sm font-medium text-ink-primary">{item.role}</span>
                     <span className="pill pill-info">{routeCount} pages</span>
                   </div>
                   <p className="mt-2 text-xs text-ink-muted">
-                    {rolePermissions.length} permissions. Default access: <span className="font-mono text-ink-secondary">{getDefaultRouteForRole(item)}</span>
+                    {rolePermissions.length} permissions. Default access: <span className="font-mono text-ink-secondary">{getDefaultRouteForRole(appRole)}</span>
                   </p>
                 </div>
               );
             })}
           </div>
-          {!userManagementAvailable ? (
+          {roles.state.kind === 'loading' ? <LoadingSkeleton rows={3} /> : null}
+          {roles.state.kind === 'ready' && roles.state.result.kind === 'error' ? (
+            <ErrorState status={roles.state.result.status} code={roles.state.result.code} message={roles.state.result.message} />
+          ) : null}
+          {permissionsApi.state.kind === 'ready' && permissionsApi.state.result.kind === 'ok' ? (
             <p className="mt-4 text-[11px] leading-relaxed text-ink-muted">
-              Current access levels are derived from the local role matrix, not a live user directory.
+              {permissionsApi.state.result.data.permissions.length} permissions loaded from {permissionsApi.state.result.data.source}.
             </p>
           ) : null}
         </div>
@@ -256,4 +271,48 @@ function HealthItem({ title, status, tone }: { title: string; status: string; to
       <div className={`mt-2 text-xs ${tone === 'good' ? 'text-good' : 'text-warn'}`}>{status}</div>
     </div>
   );
+}
+
+function renderUserDirectory(state: ReturnType<typeof useApi<any>>['state']) {
+  if (state.kind === 'loading') return <LoadingSkeleton variant="table" rows={5} />;
+  if (state.kind === 'ready' && state.result.kind === 'error') {
+    return <ErrorState status={state.result.status} code={state.result.code} message={state.result.message} />;
+  }
+  if (state.kind === 'ready' && state.result.kind === 'ok') {
+    const users = state.result.data.users || [];
+    if (users.length === 0) return <EmptyState title="No users returned" description="No safe user records matched the current search/filter." />;
+    return (
+      <div className="overflow-x-auto rounded-xl border border-line-subtle">
+        <table className="min-w-full text-left text-xs">
+          <thead className="border-b border-line-subtle bg-elevated/30 text-[10px] uppercase tracking-wider text-ink-muted">
+            <tr>
+              <th className="px-3 py-2 font-medium">User</th>
+              <th className="px-3 py-2 font-medium">Role</th>
+              <th className="px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium">Branch</th>
+              <th className="px-3 py-2 font-medium">Last login</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line-subtle/70">
+            {users.map((u: any) => (
+              <tr key={u.id} className="text-ink-secondary">
+                <td className="px-3 py-3">
+                  <div className="font-medium text-ink-primary">{u.name}</div>
+                  <div className="font-mono text-[10px] text-ink-muted">{u.loginId || u.email || '-'}</div>
+                </td>
+                <td className="px-3 py-3"><span className="pill pill-info">{u.role}</span></td>
+                <td className="px-3 py-3"><span className={u.status === 'active' ? 'pill pill-good' : u.status === 'locked' ? 'pill pill-warn' : 'pill'}>{u.status}</span></td>
+                <td className="px-3 py-3">{u.branch || '-'}</td>
+                <td className="px-3 py-3">{u.lastLoginAt ? String(u.lastLoginAt).slice(0, 10) : '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="border-t border-line-subtle px-3 py-2 text-[11px] text-ink-muted">
+          Source: {state.result.data.source}. Hidden fields: {state.result.data.hiddenFields.join(', ')}.
+        </p>
+      </div>
+    );
+  }
+  return null;
 }

@@ -35,6 +35,7 @@ export interface AnalyticsExtensionFilter {
   source_type?: string;
   page?: number;
   limit?: number;
+  offset?: number;
 }
 
 export async function getFilterOptions(filter: { scope: ScopeFilter }) {
@@ -210,6 +211,7 @@ async function fetchFinnableData(filter: AnalyticsExtensionFilter, range: DateRa
   const agentNameMap = await finnableRepo.fetchAgentNameMap();
   const resolvedRows = rawRows.map(r => ({
     ...r,
+    __sourceAgentName: r.AgentName,
     AgentName: agentNameMap[r.AgentName] || r.AgentName,
   }));
 
@@ -450,7 +452,7 @@ export async function getTopBottomAgents(filter: AnalyticsExtensionFilter) {
 
   if (adapter === 'finnable') {
     const finnableData = await fetchFinnableData(filter, range);
-    const analysts = analyticsEngine.buildAnalysts(finnableData.enrichedRows, {});
+    const analysts = analyticsEngine.buildAnalysts(finnableData.enrichedRows, {}).map(normalizeAnalystSummary);
     const page = Math.max(1, Number(filter.page) || 1);
     const limit = Math.min(100, Math.max(10, Number(filter.limit) || 20));
     const start = (page - 1) * limit;
@@ -630,4 +632,195 @@ export async function getParameterTrend(filter: AnalyticsExtensionFilter) {
     { supported: false, reason: 'GENERIC_PARAMETER_COLUMNS_NOT_AVAILABLE' },
     { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to }
   );
+}
+
+export async function getAnalystSummary(filter: AnalyticsExtensionFilter, analystId: string) {
+  const started = Date.now();
+  const range = validateDateRange(filter.from, filter.to);
+  const adapter = resolveAnalyticsAdapter({ client_id: filter.client_id, process_name: filter.process_name });
+
+  if (adapter !== 'finnable') {
+    return buildResponseEnvelope({ supported: false, reason: 'ANALYST_DETAIL_REQUIRES_FINNABLE_ADAPTER' }, { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to });
+  }
+
+  const data = await fetchAnalystRows(filter, range, analystId);
+  const summary = normalizeAnalystSummary(analyticsEngine.buildAnalysts(data.enrichedRows, {})[0] || null);
+  return buildResponseEnvelope(
+    {
+      analystId,
+      matchedAnalyst: data.matchedAnalyst,
+      summary,
+      totalCalls: data.enrichedRows.length,
+      matchingLogic: 'matched by displayed analyst name, source AgentName, or employee code',
+    },
+    { source: 'finnable', cacheHit: data.cacheHit, queryMs: data.queryMs, totalMs: Date.now() - started, from: range.from, to: range.to }
+  );
+}
+
+export async function getAnalystTrend(filter: AnalyticsExtensionFilter, analystId: string) {
+  const started = Date.now();
+  const range = validateDateRange(filter.from, filter.to);
+  const adapter = resolveAnalyticsAdapter({ client_id: filter.client_id, process_name: filter.process_name });
+
+  if (adapter !== 'finnable') {
+    return buildResponseEnvelope({ supported: false, reason: 'ANALYST_DETAIL_REQUIRES_FINNABLE_ADAPTER' }, { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to });
+  }
+
+  const data = await fetchAnalystRows(filter, range, analystId);
+  const trend = buildAnalystDayTrend(data.enrichedRows);
+  return buildResponseEnvelope(
+    { analystId, matchedAnalyst: data.matchedAnalyst, trend },
+    { source: 'finnable', cacheHit: data.cacheHit, queryMs: data.queryMs, totalMs: Date.now() - started, from: range.from, to: range.to }
+  );
+}
+
+export async function getAnalystEvidence(filter: AnalyticsExtensionFilter, analystId: string) {
+  const started = Date.now();
+  const range = validateDateRange(filter.from, filter.to);
+  const adapter = resolveAnalyticsAdapter({ client_id: filter.client_id, process_name: filter.process_name });
+
+  if (adapter !== 'finnable') {
+    return buildResponseEnvelope({ supported: false, reason: 'ANALYST_DETAIL_REQUIRES_FINNABLE_ADAPTER' }, { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to });
+  }
+
+  const data = await fetchAnalystRows(filter, range, analystId);
+  const limit = Math.min(100, Math.max(10, Number(filter.limit) || 20));
+  const offset = Math.max(0, Number(filter.offset) || 0);
+  const evidenceRows = data.enrichedRows
+    .filter((row: any) => row.riskBucket !== 'No Risk Flag' || row.qualityBand === 'High Risk' || row.qualityBand === 'Critical Coaching' || row.salesLeakage !== 'No Major Leakage')
+    .sort((a: any, b: any) => String(b.CallDate).localeCompare(String(a.CallDate)));
+
+  return buildResponseEnvelope(
+    {
+      analystId,
+      matchedAnalyst: data.matchedAnalyst,
+      records: evidenceRows.slice(offset, offset + limit).map(analyticsEngine.lightRecord),
+      total: evidenceRows.length,
+      limit,
+      offset,
+    },
+    { source: 'finnable', cacheHit: data.cacheHit, queryMs: data.queryMs, totalMs: Date.now() - started, from: range.from, to: range.to }
+  );
+}
+
+export async function getAnalystCoaching(filter: AnalyticsExtensionFilter, analystId: string) {
+  const started = Date.now();
+  const range = validateDateRange(filter.from, filter.to);
+  const adapter = resolveAnalyticsAdapter({ client_id: filter.client_id, process_name: filter.process_name });
+
+  if (adapter !== 'finnable') {
+    return buildResponseEnvelope({ supported: false, reason: 'ANALYST_DETAIL_REQUIRES_FINNABLE_ADAPTER' }, { source: 'generic', totalMs: Date.now() - started, from: range.from, to: range.to });
+  }
+
+  const data = await fetchAnalystRows(filter, range, analystId);
+  const rawSummary = analyticsEngine.buildAnalysts(data.enrichedRows, {})[0] || null;
+  const summary = normalizeAnalystSummary(rawSummary);
+  const parameterTrend = analyticsEngine.buildParameterTrend(data.enrichedRows);
+  const weaknesses = parameterTrend.trend
+    .map((p: any) => {
+      const totals = p.series.reduce((acc: any, point: any) => ({
+        total: acc.total + (point.total || 0),
+        passed: acc.passed + (point.passed || 0),
+      }), { total: 0, passed: 0 });
+      return {
+        parameter: p.parameter,
+        total: totals.total,
+        passRate: totals.total > 0 ? totals.passed / totals.total : null,
+      };
+    })
+    .filter((p: any) => p.total > 0)
+    .sort((a: any, b: any) => (a.passRate ?? 1) - (b.passRate ?? 1))
+    .slice(0, 5);
+
+  const highRisk = data.enrichedRows.filter((row: any) => row.riskBucket === 'High Priority Risk Trigger').length;
+  const opportunities = data.enrichedRows.filter((row: any) => row.opportunity).length;
+  const pitched = data.enrichedRows.filter((row: any) => row.opportunity && row.PrepaidPitch === '1').length;
+  const recommendations = buildCoachingRecommendations(rawSummary, weaknesses, highRisk, opportunities, pitched);
+
+  return buildResponseEnvelope(
+    {
+      analystId,
+      matchedAnalyst: data.matchedAnalyst,
+      weaknesses,
+      recommendations,
+      summary,
+    },
+    { source: 'finnable', cacheHit: data.cacheHit, queryMs: data.queryMs, totalMs: Date.now() - started, from: range.from, to: range.to }
+  );
+}
+
+async function fetchAnalystRows(filter: AnalyticsExtensionFilter, range: DateRange, analystId: string) {
+  const finnableData = await fetchFinnableData(filter, range);
+  const rawId = decodeURIComponent(String(analystId || '')).trim().toLowerCase();
+  const agentNameMap = await finnableRepo.fetchAgentNameMap();
+  const reverseMap: Record<string, string> = {};
+  Object.entries(agentNameMap).forEach(([code, name]) => {
+    reverseMap[String(name).trim().toLowerCase()] = String(code).trim().toLowerCase();
+  });
+  const matchKeys = new Set<string>([rawId]);
+  if (reverseMap[rawId]) matchKeys.add(reverseMap[rawId]);
+  if (agentNameMap[analystId]) matchKeys.add(String(agentNameMap[analystId]).trim().toLowerCase());
+
+  const rows = finnableData.enrichedRows.filter((row: any) => {
+    const display = String(row.AgentName || '').trim().toLowerCase();
+    const source = String(row.__sourceAgentName || '').trim().toLowerCase();
+    return matchKeys.has(display) || matchKeys.has(source);
+  });
+
+  return {
+    ...finnableData,
+    enrichedRows: rows,
+    matchedAnalyst: rows[0]?.AgentName || analystId,
+  };
+}
+
+function buildAnalystDayTrend(rows: any[]) {
+  const byDay: Record<string, any[]> = {};
+  rows.forEach(row => {
+    const day = String(row.CallDate || '').slice(0, 10);
+    if (!day) return;
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push(row);
+  });
+  return Object.keys(byDay).sort().map(date => {
+    const dayRows = byDay[date];
+    const scored = dayRows.filter(row => row.score !== null && row.score !== undefined);
+    return {
+      date,
+      avgScore: scored.length ? Math.round((scored.reduce((s, r) => s + Number(r.score || 0), 0) / scored.length) * 100) / 100 : null,
+      totalCalls: dayRows.length,
+      scoredCalls: scored.length,
+      pitchAttempts: dayRows.filter(row => row.opportunity && row.PrepaidPitch === '1').length,
+      highRiskCount: dayRows.filter(row => row.riskBucket === 'High Priority Risk Trigger').length,
+    };
+  });
+}
+
+function buildCoachingRecommendations(summary: any, weaknesses: any[], highRisk: number, opportunities: number, pitched: number) {
+  const output: string[] = [];
+  if (highRisk > 0) output.push('Review high-risk calls first and validate compliance language before coaching closure.');
+  if (weaknesses[0]) output.push(`Primary parameter weakness: ${weaknesses[0].parameter} at ${Math.round((weaknesses[0].passRate || 0) * 100)}% pass rate.`);
+  if (opportunities > pitched) output.push(`Sales coverage gap: ${opportunities - pitched} opportunity calls did not show a pitch attempt signal.`);
+  if (summary?.avgQuality !== undefined && summary.avgQuality < 70) output.push('Schedule focused QA calibration for quality fundamentals.');
+  if (output.length === 0) output.push('Maintain current performance and use recent strong calls for peer coaching examples.');
+  return output;
+}
+
+function normalizeAnalystSummary(summary: any) {
+  if (!summary) return null;
+  return {
+    agentName: summary.analystName || summary.agentId,
+    avgScore: summary.avgQuality,
+    totalCalls: summary.calls,
+    scoredCalls: summary.scoredCalls,
+    pitchAttempts: Math.round((summary.pitchAttemptRate || 0) * (summary.opportunities || 0)),
+    strongPitch: summary.strongPitch,
+    highRiskCount: summary.highRiskTriggers,
+    opportunities: summary.opportunities,
+    disbursals: undefined,
+    lastCallDate: undefined,
+    priority: summary.priority,
+    primaryLeakage: summary.primaryLeakage,
+    salesMixedAvgQuality: summary.salesMixedAvgQuality,
+  };
 }
