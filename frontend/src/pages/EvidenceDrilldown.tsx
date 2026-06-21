@@ -11,7 +11,7 @@ import RiskQueueTable from '../components/tables/RiskQueueTable';
 import EvidenceDrawer from '../components/evidence/EvidenceDrawer';
 import { useApi } from '../utils/useApi';
 import { useFilters } from '../context/FiltersContext';
-import { postDrilldown, getRiskQueue } from '../api/analyticsApi';
+import { postDrilldown, getRiskQueue, getSensitiveWords } from '../api/analyticsApi';
 import type { RiskQueueRecord } from '../api/types';
 
 const DIMENSIONS: Array<{ value: string; label: string }> = [
@@ -37,9 +37,11 @@ export default function EvidenceDrilldown() {
     [filters, dimension, value, page],
   );
   const fallback = useApi(() => getRiskQueue({ ...toQuery(), page: 1, limit: limit }), [filters]);
+  const sensitive = useApi(() => getSensitiveWords(toQuery()), [filters]);
 
   const drillData = drill.state.kind === 'ready' && drill.state.result.kind === 'ok' ? drill.state.result.data : null;
   const fbData = fallback.state.kind === 'ready' && fallback.state.result.kind === 'ok' ? fallback.state.result.data : null;
+  const sensitiveData = sensitive.state.kind === 'ready' && sensitive.state.result.kind === 'ok' ? sensitive.state.result.data : null;
 
   return (
     <>
@@ -96,6 +98,24 @@ export default function EvidenceDrilldown() {
       >
         {renderDrill(drill.state, drillData, setOpen)}
       </ChartCard>
+
+      <section className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="glass p-4">
+          <div className="text-[10px] uppercase tracking-wider text-ink-muted">Fallback queue</div>
+          <div className="mt-2 text-2xl font-semibold text-ink-primary">{fbData?.total ?? '—'}</div>
+          <p className="mt-1 text-xs text-ink-muted">Risk records available for selected filters.</p>
+        </div>
+        <div className="glass p-4">
+          <div className="text-[10px] uppercase tracking-wider text-ink-muted">Sensitive incidents</div>
+          <div className="mt-2 text-2xl font-semibold text-warn">{sensitiveData?.totalIncidents ?? '—'}</div>
+          <p className="mt-1 text-xs text-ink-muted">From masked sensitive-word contexts.</p>
+        </div>
+        <div className="glass p-4">
+          <div className="text-[10px] uppercase tracking-wider text-ink-muted">Top term</div>
+          <div className="mt-2 truncate text-lg font-semibold text-ink-primary">{sensitiveData?.byTerm?.[0]?.term ?? '—'}</div>
+          <p className="mt-1 text-xs text-ink-muted">{sensitiveData?.byTerm?.[0]?.count ? `${sensitiveData.byTerm[0].count} hits` : 'No sensitive term data returned.'}</p>
+        </div>
+      </section>
 
       {drillData && Math.ceil(drillData.total / drillData.limit) > 1 ? (
         <div className="mt-4 flex items-center justify-between text-xs text-ink-muted">

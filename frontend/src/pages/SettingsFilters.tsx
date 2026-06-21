@@ -4,12 +4,16 @@ import GlobalFilters from '../components/filters/GlobalFilters';
 import { useAuth } from '../context/AuthContext';
 import { useFilters } from '../context/FiltersContext';
 import { getBaseUrl } from '../api/httpClient';
+import { getPermissions } from '../routes/permissions';
+import { getUserRole } from '../routes/roleMap';
 import { fmtDate } from '../utils/formatters';
 
 export default function SettingsFilters() {
   const { user } = useAuth();
   const { filters } = useFilters();
   const baseUrl = getBaseUrl();
+  const role = getUserRole(user);
+  const permissions = getPermissions(role);
 
   return (
     <>
@@ -55,8 +59,18 @@ export default function SettingsFilters() {
           </header>
           <Field label="Login ID" value={user?.login_id || '—'} mono />
           <Field label="Display name" value={user?.name || user?.login_id || '—'} />
-          <Field label="Role" value={user?.role_code || '—'} />
+          <Field label="Role" value={role} />
           <Field label="Session start" value={fmtDate(new Date().toISOString())} />
+          <div className="mt-4">
+            <div className="mb-2 text-[10px] uppercase tracking-wider text-ink-muted">Permissions</div>
+            <div className="flex flex-wrap gap-2">
+              {permissions.map(permission => (
+                <span key={permission} className="rounded-lg border border-line-subtle bg-elevated/35 px-2 py-1 text-[10px] text-ink-secondary">
+                  {permission}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="glass p-5">

@@ -113,7 +113,7 @@ function TopList({ analysts, tone }: { analysts: any[]; tone: 'good' | 'bad' }) 
   return (
     <ol className="space-y-3">
       {analysts.map((a, i) => (
-        <li key={a.agentName} className="flex items-center gap-4">
+        <li key={`${a.agentName || 'analyst'}-${i}`} className="flex items-center gap-4">
           <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border ${
             tone === 'good' ? 'border-good/30 bg-good/10 text-good' : 'border-bad/30 bg-bad/10 text-bad'
           }`}>

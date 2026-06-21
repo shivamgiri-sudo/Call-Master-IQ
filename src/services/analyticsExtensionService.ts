@@ -37,6 +37,96 @@ export interface AnalyticsExtensionFilter {
   limit?: number;
 }
 
+export async function getFilterOptions(filter: { scope: ScopeFilter }) {
+  const started = Date.now();
+  const scope = filter.scope || {};
+
+  const mappingConditions = ['active_status = 1'];
+  const mappingParams: any[] = [];
+  if (scope.client_id) { mappingConditions.push('dialdesk_client_id = ?'); mappingParams.push(scope.client_id); }
+  if (scope.process_name) { mappingConditions.push('process_name = ?'); mappingParams.push(scope.process_name); }
+  if (scope.business_lob) { mappingConditions.push('business_lob = ?'); mappingParams.push(scope.business_lob); }
+  if (scope.source_type) { mappingConditions.push('source_type = ?'); mappingParams.push(scope.source_type); }
+  if (scope.branch_short_name) { mappingConditions.push('branch = ?'); mappingParams.push(scope.branch_short_name); }
+
+  const mappingWhere = `WHERE ${mappingConditions.join(' AND ')}`;
+
+  const branchConditions = ['active_status = 1', 'branch_short_name IS NOT NULL', "branch_short_name <> ''"];
+  const branchParams: any[] = [];
+  if (scope.branch_short_name) { branchConditions.push('branch_short_name = ?'); branchParams.push(scope.branch_short_name); }
+
+  const [clientRows, processRows, lobRows, branchRows, sourceRows] = await Promise.all([
+    pool.execute<any[]>(
+      `SELECT dialdesk_client_id AS value, COUNT(*) AS count
+       FROM process_mapping_master ${mappingWhere}
+       AND dialdesk_client_id IS NOT NULL AND dialdesk_client_id <> ''
+       GROUP BY dialdesk_client_id
+       ORDER BY count DESC
+       LIMIT 50`,
+      mappingParams
+    ),
+    pool.execute<any[]>(
+      `SELECT process_name AS value, COUNT(*) AS count
+       FROM process_mapping_master ${mappingWhere}
+       AND process_name IS NOT NULL AND process_name <> ''
+       GROUP BY process_name
+       ORDER BY value
+       LIMIT 100`,
+      mappingParams
+    ),
+    pool.execute<any[]>(
+      `SELECT business_lob AS value, COUNT(*) AS count
+       FROM process_mapping_master ${mappingWhere}
+       AND business_lob IS NOT NULL AND business_lob <> ''
+       GROUP BY business_lob
+       ORDER BY value
+       LIMIT 100`,
+      mappingParams
+    ),
+    pool.execute<any[]>(
+      `SELECT branch_short_name AS value, COUNT(*) AS count
+       FROM employee_mapping_master
+       WHERE ${branchConditions.join(' AND ')}
+       GROUP BY branch_short_name
+       ORDER BY count DESC
+       LIMIT 100`,
+      branchParams
+    ),
+    pool.execute<any[]>(
+      `SELECT source_type AS value, COUNT(*) AS count
+       FROM process_mapping_master ${mappingWhere}
+       AND source_type IS NOT NULL AND source_type <> ''
+       GROUP BY source_type
+       ORDER BY value
+       LIMIT 20`,
+      mappingParams
+    ),
+  ]);
+
+  const normalize = (rows: any[]) => rows
+    .filter(r => r.value !== null && r.value !== undefined && String(r.value).trim() !== '')
+    .map(r => ({ value: String(r.value), label: String(r.value), count: Number(r.count || 0) }));
+
+  const clients = normalize(clientRows[0]);
+  if (!clients.some(c => c.value === DEFAULT_CLIENT_ID)) {
+    clients.unshift({ value: DEFAULT_CLIENT_ID, label: `${DEFAULT_CLIENT_ID} · Finnable`, count: 0 });
+  }
+
+  return buildResponseEnvelope(
+    {
+      clients,
+      processes: normalize(processRows[0]),
+      businessLobs: normalize(lobRows[0]),
+      branches: normalize(branchRows[0]),
+      sources: normalize(sourceRows[0]),
+      defaults: {
+        client_id: DEFAULT_CLIENT_ID,
+      },
+    },
+    { source: 'generic', queryMs: Date.now() - started, totalMs: Date.now() - started }
+  );
+}
+
 interface DateRange {
   from: string;
   to: string;

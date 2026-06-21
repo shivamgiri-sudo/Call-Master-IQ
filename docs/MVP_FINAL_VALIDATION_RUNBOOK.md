@@ -205,8 +205,8 @@ The `handleError()` helper in `src/controllers/analyticsExtensionController.ts` 
 ## 11. No-secret-in-logs invariant
 
 ```bash
-# Search for any committed file that contains DB password or JWT secret
-grep -rE "(qwersdfg|password\s*=\s*['\"][^'\"]{4,}|JWT_SECRET\s*=\s*[A-Za-z0-9]{16,})" \
+# Search for any committed file that contains DB password or JWT secret patterns
+grep -rE "(password\s*=\s*['\"][^'\"]{4,}|JWT_SECRET\s*=\s*[A-Za-z0-9]{16,})" \
   --include="*.ts" --include="*.js" --include="*.md" --include="*.sql" \
   --include="*.json" --exclude-dir=node_modules --exclude-dir=dist . || echo "OK: no plaintext secrets in tracked files"
 ```

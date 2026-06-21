@@ -304,7 +304,7 @@ Exit 0. Zero DB connections made.
 
 | Check | Result |
 |-------|--------|
-| `git grep -n "qwersdfg"` | exit 1 — no matches ✅ |
+| `git grep -n "<redacted-secret-prefix>"` | exit 1 — no matches ✅ |
 | `git grep -n "DB_PASSWORD"` | Only safe references: `.env.example` placeholder, `src/config/db*.ts` env vars, docs with redacted description ✅ |
 | `git status --short` | Modified: `dist/` (not tracked), `src/server.ts`, untracked docs/screenshots — no unexpected tracked-file changes ✅ |
 

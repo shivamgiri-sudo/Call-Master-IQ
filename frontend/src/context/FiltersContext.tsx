@@ -15,6 +15,8 @@ export interface GlobalFilters {
   business_lob: string;
   branch_short_name: string;
   source_type: string;
+  analyst_id: string;
+  team_id: string;
   from: string;
   to: string;
 }
@@ -25,6 +27,8 @@ const DEFAULT_FILTERS: GlobalFilters = {
   business_lob: '',
   branch_short_name: '',
   source_type: '',
+  analyst_id: '',
+  team_id: '',
   from: daysAgoIso(30),
   to: todayIso(),
 };
@@ -64,6 +68,8 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
     if (filters.business_lob) out.business_lob = filters.business_lob;
     if (filters.branch_short_name) out.branch_short_name = filters.branch_short_name;
     if (filters.source_type) out.source_type = filters.source_type;
+    if (filters.analyst_id) out.analyst_id = filters.analyst_id;
+    if (filters.team_id) out.team_id = filters.team_id;
     return out;
   }, [filters]);
 

@@ -21,10 +21,18 @@ export interface LoginRequest {
 
 export interface LoginUser {
   id?: number | string;
+  user_id?: number | string;
   login_id?: string;
   email?: string;
   name?: string;
+  full_name?: string;
   role_code?: string;
+  role?: string;
+  role_name?: string;
+  branch_short_name?: string | null;
+  process_name?: string | null;
+  team_id?: string | number | null;
+  employee_code?: string | null;
   [k: string]: unknown;
 }
 

@@ -27,10 +27,15 @@ const DEFAULT_BASE_URL = 'http://localhost:5050';
 
 let _baseUrl: string = import.meta.env.VITE_API_BASE_URL || DEFAULT_BASE_URL;
 let _token: string | null = null;
+let _authFailureHandler: ((status: 401 | 403) => void) | null = null;
 
 export function configureHttp(opts: { baseUrl?: string; token?: string | null }): void {
   if (opts.baseUrl !== undefined) _baseUrl = opts.baseUrl;
   _token = opts.token ?? _token;
+}
+
+export function setAuthFailureHandler(handler: ((status: 401 | 403) => void) | null): void {
+  _authFailureHandler = handler;
 }
 
 export function getBaseUrl(): string {
@@ -100,6 +105,9 @@ async function request<T>(
   }
 
   if (!response.ok || payload?.success === false) {
+    if ((response.status === 401 || response.status === 403) && _authFailureHandler) {
+      _authFailureHandler(response.status as 401 | 403);
+    }
     return {
       kind: 'error',
       status: response.status,

@@ -28,6 +28,7 @@ import type {
   AnalystDailyTrendData,
   ParameterTrendData,
   DrilldownPayload,
+  FilterOptionsData,
 } from './types';
 
 export interface AnalyticsFilters {
@@ -36,6 +37,8 @@ export interface AnalyticsFilters {
   business_lob?: string;
   branch_short_name?: string;
   source_type?: string;
+  analyst_id?: string;
+  team_id?: string;
   from?: string;
   to?: string;
   page?: number;
@@ -48,6 +51,9 @@ export interface AnalyticsFilters {
 // ─── 1. split-kpis ─────────────────────────────────────────────────────────
 export const getSplitKpis = (f: AnalyticsFilters) =>
   http.get<SplitKpisData>('/api/analytics/split-kpis', f);
+
+export const getFilterOptions = () =>
+  http.get<FilterOptionsData>('/api/analytics/filter-options');
 
 // ─── 2. sales-intelligence ──────────────────────────────────────────────────
 export const getSalesIntelligence = (f: AnalyticsFilters) =>

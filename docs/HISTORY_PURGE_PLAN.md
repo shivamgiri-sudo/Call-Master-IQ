@@ -135,7 +135,7 @@ ls -la folder/path/.env
 
 ```bash
 # Should return empty
-git log --all -p | grep -E 'qwersdfg|call_master_super_secret_change_this' || echo "OK: no plaintext credentials in any reachable commit"
+git log --all -p | grep -E 'DB_PASSWORD=|JWT_SECRET=|call_master_super_secret_change_this' || echo "OK: no plaintext credential assignments in any reachable commit"
 
 # Sweep for any other tracked-file history leak
 git log --all -p | grep -E "(DB_PASSWORD|JWT_SECRET)\s*=" | grep -v placeholder || echo "OK: no leaked credential assignments"
@@ -174,7 +174,7 @@ Anyone with **uncommitted local work** must `git stash` first.
    ```bash
    cd /tmp && git clone https://github.com/shivamgiri-sudo/Call-Master-IQ.git fresh-clone
    cd fresh-clone
-   git log --all -p | grep -E 'qwersdfg' || echo "OK: clean clone is credential-free"
+   git log --all -p | grep -E 'DB_PASSWORD=|JWT_SECRET=' || echo "OK: clean clone is credential-free"
    ```
 
 ## 5. Option B — exact commands (NOT to be executed yet)

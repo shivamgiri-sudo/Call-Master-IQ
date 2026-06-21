@@ -4,7 +4,7 @@ import { LogIn, Sparkles, AlertOctagon, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
-  const { login, token } = useAuth();
+  const { login, token, defaultRoute } = useAuth();
   const navigate = useNavigate();
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
@@ -13,8 +13,8 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (token) navigate('/command-center', { replace: true });
-  }, [token, navigate]);
+    if (token) navigate(defaultRoute, { replace: true });
+  }, [token, defaultRoute, navigate]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -28,7 +28,7 @@ export default function Login() {
       // Never log the password or token
       return;
     }
-    navigate('/command-center', { replace: true });
+    navigate(result.redirectTo || defaultRoute, { replace: true });
   };
 
   return (

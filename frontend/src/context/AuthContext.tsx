@@ -1,13 +1,15 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
-import { configureHttp } from '../api/httpClient';
+import { configureHttp, setAuthFailureHandler } from '../api/httpClient';
 import { loadStoredToken, login as loginApi, storeSession, logout as logoutApi, type LoginUser } from '../api/authApi';
+import { getDefaultRouteForRole, getUserRole } from '../routes/roleMap';
 
 interface AuthState {
   token: string | null;
   user: LoginUser | null;
   loading: boolean;
-  login: (loginId: string, password: string) => Promise<{ ok: boolean; message?: string }>;
+  login: (loginId: string, password: string) => Promise<{ ok: boolean; message?: string; redirectTo?: string }>;
   logout: () => void;
+  defaultRoute: string;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -28,10 +30,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
+  useEffect(() => {
+    setAuthFailureHandler(status => {
+      if (status === 401) {
+        logoutApi();
+        setToken(null);
+        setUser(null);
+        window.location.assign('/login');
+      }
+    });
+    return () => setAuthFailureHandler(null);
+  }, []);
+
   const value = useMemo<AuthState>(() => ({
     token,
     user,
     loading,
+    defaultRoute: getDefaultRouteForRole(getUserRole(user)),
     async login(loginId: string, password: string) {
       const res = await loginApi({ login_id: loginId, password });
       if (!res.ok) {
@@ -40,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       storeSession(res.token, res.user);
       setToken(res.token);
       setUser(res.user ?? null);
-      return { ok: true };
+      return { ok: true, redirectTo: getDefaultRouteForRole(getUserRole(res.user)) };
     },
     logout() {
       logoutApi();

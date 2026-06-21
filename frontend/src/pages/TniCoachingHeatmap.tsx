@@ -101,8 +101,8 @@ export default function TniCoachingHeatmap() {
             loading={false}
           >
             <div className="space-y-2">
-              {tniSummary.map((p: any) => (
-                <div key={p.process} className="flex items-center gap-3">
+              {tniSummary.map((p: any, index: number) => (
+                <div key={`${p.process || 'process'}-${index}`} className="flex items-center gap-3">
                   <div className="min-w-0 flex-1 truncate text-sm text-ink-primary">{p.process}</div>
                   <div className="h-1.5 w-48 overflow-hidden rounded-full bg-line-subtle">
                     <div

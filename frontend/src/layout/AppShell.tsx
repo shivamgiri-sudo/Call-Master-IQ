@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import { useAuth } from '../context/AuthContext';
+import { getDisplayName, getUserRole } from '../routes/roleMap';
 
 interface AppShellProps {
   children: ReactNode;
@@ -25,7 +26,7 @@ export default function AppShell({ children }: AppShellProps) {
 
         {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar onMenuClick={() => setSidebarOpen(true)} userLabel={user?.name || user?.login_id || 'Operator'} />
+          <Topbar onMenuClick={() => setSidebarOpen(true)} userLabel={getDisplayName(user)} userRole={getUserRole(user)} />
           <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
             <div className="mx-auto w-full max-w-[1480px]">
               {children}

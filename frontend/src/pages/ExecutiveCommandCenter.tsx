@@ -51,7 +51,7 @@ export default function ExecutiveCommandCenter() {
 
   const trendData = useMemo(() => {
     if (trend.state.kind !== 'ready' || trend.state.result.kind !== 'ok') return [];
-    return trend.state.result.data.trend.map(p => ({
+    return (trend.state.result.data.trend ?? []).map(p => ({
       date: p.date,
       avgScore: p.avgScore ?? null,
       totalCalls: p.totalCalls,
@@ -60,7 +60,7 @@ export default function ExecutiveCommandCenter() {
 
   const topRiskRows = useMemo(() => {
     if (riskByProc.state.kind !== 'ready' || riskByProc.state.result.kind !== 'ok') return [];
-    return riskByProc.state.result.data.rows.slice(0, 5);
+    return (riskByProc.state.result.data.rows ?? []).slice(0, 5);
   }, [riskByProc.state]);
 
   return (
@@ -147,10 +147,10 @@ export default function ExecutiveCommandCenter() {
 
         {renderKpi(topBottom.state, (data) => ({
           label: 'Analyst Coverage',
-          value: fmtInt(data.total),
+          value: fmtInt(data.total ?? 0),
           icon: <Users size={16} />,
           tone: 'neutral',
-          hint: data.analysts.length ? `Top avg ${fmtDec(data.analysts[0]?.avgScore, 1) || '—'}` : undefined,
+          hint: data.analysts?.length ? `Top avg ${fmtDec(data.analysts[0]?.avgScore, 1) || '—'}` : undefined,
           onClick: () => navigate('/analysts'),
         }))}
       </section>
@@ -173,9 +173,9 @@ export default function ExecutiveCommandCenter() {
         <div>
           <ChartCard
             title="Top 5 risk areas"
-            subtitle={riskByProc.state.kind === 'ready' && riskByProc.state.result.kind === 'ok' ? `Grouped by ${riskByProc.state.result.data.dimension}` : ''}
+            subtitle={riskByProc.state.kind === 'ready' && riskByProc.state.result.kind === 'ok' ? `Grouped by ${riskByProc.state.result.data.dimension ?? 'process'}` : ''}
             loading={riskByProc.state.kind === 'loading'}
-            empty={riskByProc.state.kind === 'ready' && (riskByProc.state.result.kind === 'empty' || (riskByProc.state.result.kind === 'ok' && riskByProc.state.result.data.rows.length === 0))}
+            empty={riskByProc.state.kind === 'ready' && (riskByProc.state.result.kind === 'empty' || (riskByProc.state.result.kind === 'ok' && (riskByProc.state.result.data.rows ?? []).length === 0))}
           >
             {renderRiskByProc(riskByProc.state, topRiskRows)}
           </ChartCard>

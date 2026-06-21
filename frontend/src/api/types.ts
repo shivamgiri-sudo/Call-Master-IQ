@@ -61,6 +61,23 @@ export interface ApiError {
 
 export type ApiResult<T> = ApiOk<T> | ApiUnsupported | ApiEmpty | ApiError;
 
+export interface FilterOption {
+  value: string;
+  label: string;
+  count: number;
+}
+
+export interface FilterOptionsData {
+  clients: FilterOption[];
+  processes: FilterOption[];
+  businessLobs: FilterOption[];
+  branches: FilterOption[];
+  sources: FilterOption[];
+  defaults: {
+    client_id: string;
+  };
+}
+
 // ─── Domain types (subset; full shape inferred from usage) ──────────────────
 
 export interface CountItem {
@@ -285,6 +302,8 @@ export interface DrilldownPayload {
   value: string;
   client_id?: string;
   process_name?: string;
+  analyst_id?: string;
+  team_id?: string;
   from?: string;
   to?: string;
   page?: number;

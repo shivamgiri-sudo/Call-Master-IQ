@@ -74,9 +74,9 @@ export default function AnalystTable({ analysts, loading, onRowClick }: AnalystT
             </tr>
           </thead>
           <tbody>
-            {sorted.map(a => (
+            {sorted.map((a, index) => (
               <tr
-                key={a.agentName}
+                key={`${a.agentName || 'unknown'}-${a.lastCallDate || 'no-date'}-${index}`}
                 onClick={() => onRowClick?.(a)}
                 className="cursor-pointer border-b border-line-subtle/60 text-sm text-ink-secondary transition-colors hover:bg-elevated/40"
               >

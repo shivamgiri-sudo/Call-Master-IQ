@@ -17,6 +17,17 @@ function handleError(err: any, res: Response) {
   }
 }
 
+export async function getFilterOptions(req: Request, res: Response): Promise<void> {
+  try {
+    const result = await service.getFilterOptions({
+      scope: req.scopeFilter || {},
+    });
+    res.json(result);
+  } catch (err: any) {
+    handleError(err, res);
+  }
+}
+
 export async function getSplitKPIs(req: Request, res: Response): Promise<void> {
   try {
     const result = await service.getSplitKPIs({

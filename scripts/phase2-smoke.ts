@@ -202,7 +202,7 @@ function writeReport(results: TestResult[], authPassed: boolean, from: string, t
   output += `**Test User:** ${ADMIN_LOGIN || '(SMOKE_BEARER_TOKEN)'}\n`;
   output += `**Date Range:** ${from} to ${to}\n`;
   output += `**Auth Preflight:** ${authPassed ? '✅ PASS' : '❌ FAIL'}\n\n`;
-  output += `**Data-Status Taxonomy:** NON_EMPTY = real data returned · SUPPORTED_FALSE = \\`{supported:false, reason:'…'}\\` (honest contract) · EMPTY = empty payload · SKIPPED = auth failed · ERROR = 5xx/network\n\n`;
+  output += `**Data-Status Taxonomy:** NON_EMPTY = real data returned · SUPPORTED_FALSE = \`{supported:false, reason:'…'}\` (honest contract) · EMPTY = empty payload · SKIPPED = auth failed · ERROR = 5xx/network\n\n`;
   output += `---\n\n`;
 
   // Summary stats
