@@ -1,13 +1,35 @@
-import { BadgeCheck, ShieldCheck, User2 } from 'lucide-react';
+import { BadgeCheck, LogOut, Route, ShieldCheck, User2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import PageHeader from '../layout/PageHeader';
 import { useAuth } from '../context/AuthContext';
-import { getDisplayName, getUserRole } from '../routes/roleMap';
-import { getPermissions } from '../routes/permissions';
+import { getDefaultRouteForRole, getDisplayName, getUserRole } from '../routes/roleMap';
+import { getPermissions, hasPermission, ROUTE_PERMISSIONS } from '../routes/permissions';
+
+const ROUTE_LABELS: Record<string, string> = {
+  '/command-center': 'Command Center',
+  '/quality': 'Quality',
+  '/sales-funnel': 'Sales Funnel',
+  '/risk': 'Risk Queue',
+  '/tni': 'TNI Heatmap',
+  '/analysts': 'Analysts',
+  '/evidence': 'Evidence',
+  '/settings': 'Settings',
+  '/admin': 'Admin',
+  '/profile': 'Profile',
+};
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, token, logout } = useAuth();
+  const navigate = useNavigate();
   const role = getUserRole(user);
   const permissions = getPermissions(role);
+  const accessiblePages = Object.entries(ROUTE_PERMISSIONS)
+    .filter(([, permission]) => hasPermission(role, permission))
+    .map(([path]) => ({ path, label: ROUTE_LABELS[path] || path }));
+  const onLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <>
@@ -32,6 +54,20 @@ export default function Profile() {
           <Field label="Email" value={String(user?.email || '-')} />
           <Field label="Branch" value={String(user?.branch_short_name || '-')} />
           <Field label="Employee code" value={String(user?.employee_code || '-')} />
+          <Field label="Default landing" value={getDefaultRouteForRole(role)} />
+          <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-line-subtle bg-elevated/35 p-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-ink-muted">Session</div>
+              <div className="mt-1 text-sm font-medium text-good">{token ? 'Active' : 'Inactive'}</div>
+            </div>
+            <button
+              onClick={onLogout}
+              className="inline-flex items-center gap-2 rounded-xl border border-line-subtle bg-panel/50 px-3 py-2 text-xs font-medium text-ink-secondary transition-colors hover:border-bad/35 hover:text-bad focus-ring"
+            >
+              <LogOut size={14} />
+              Logout
+            </button>
+          </div>
         </div>
 
         <div className="glass p-5">
@@ -45,6 +81,25 @@ export default function Profile() {
                 <BadgeCheck size={13} className="text-good" />
                 <span className="truncate">{permission}</span>
               </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="glass p-5 xl:col-span-2">
+          <header className="mb-4 flex items-center gap-2">
+            <Route size={16} className="text-blue" />
+            <h3 className="text-sm font-semibold text-ink-primary">Accessible Pages</h3>
+          </header>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {accessiblePages.map(page => (
+              <Link
+                key={page.path}
+                to={page.path}
+                className="rounded-xl border border-line-subtle bg-elevated/35 px-3 py-3 text-sm text-ink-secondary transition-colors hover:border-line-strong hover:text-ink-primary focus-ring"
+              >
+                <span className="block font-medium text-ink-primary">{page.label}</span>
+                <span className="mt-1 block font-mono text-[11px] text-ink-muted">{page.path}</span>
+              </Link>
             ))}
           </div>
         </div>

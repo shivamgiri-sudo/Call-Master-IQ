@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import {
   Phone, ShieldCheck, AlertTriangle, TrendingUp, Target, Award, Banknote,
-  Users, Activity,
+  Users, ArrowUpRight, ArrowDownRight, ClipboardList, Gauge, Route,
 } from 'lucide-react';
 import PageHeader from '../layout/PageHeader';
 import GlobalFilters from '../components/filters/GlobalFilters';
@@ -63,6 +63,27 @@ export default function ExecutiveCommandCenter() {
     return (riskByProc.state.result.data.rows ?? []).slice(0, 5);
   }, [riskByProc.state]);
 
+  const analystRows = useMemo(() => {
+    if (topBottom.state.kind !== 'ready' || topBottom.state.result.kind !== 'ok') return [];
+    return topBottom.state.result.data.analysts ?? [];
+  }, [topBottom.state]);
+
+  const lowestAnalyst = analystRows.find(a => a.avgScore !== null && a.avgScore !== undefined);
+  const highestAnalyst = [...analystRows]
+    .filter(a => a.avgScore !== null && a.avgScore !== undefined)
+    .sort((a, b) => Number(b.avgScore) - Number(a.avgScore))[0];
+  const latestTrend = trendData[trendData.length - 1];
+  const previousTrend = trendData[trendData.length - 2];
+  const trendDelta = latestTrend?.avgScore !== null && latestTrend?.avgScore !== undefined
+    && previousTrend?.avgScore !== null && previousTrend?.avgScore !== undefined
+    ? latestTrend.avgScore - previousTrend.avgScore
+    : null;
+  const topRiskProcess = topRiskRows[0];
+  const pitchRate = quality?.opportunities ? (quality.pitched || 0) / quality.opportunities : null;
+  const leakageCount = quality?.opportunities !== undefined && quality?.pitched !== undefined
+    ? Math.max(quality.opportunities - quality.pitched, 0)
+    : null;
+
   return (
     <>
       <PageHeader
@@ -75,6 +96,37 @@ export default function ExecutiveCommandCenter() {
       />
 
       <GlobalFilters />
+
+      <section className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-4">
+        <ExecutivePulseCard
+          icon={<Gauge size={18} />}
+          label="Overall health"
+          value={quality?.avgQuality === null || quality?.avgQuality === undefined ? 'No score' : fmtDec(quality.avgQuality, 1)}
+          tone={toneForAvg(quality?.avgQuality)}
+          detail={quality?.qualityScoredCalls !== undefined ? `${fmtInt(quality.qualityScoredCalls)} scored calls` : 'Awaiting scored call data'}
+        />
+        <ExecutivePulseCard
+          icon={<AlertTriangle size={18} />}
+          label="Risk pressure"
+          value={quality?.highRiskTriggers === undefined ? 'No signal' : fmtInt(quality.highRiskTriggers)}
+          tone={(quality?.highRiskTriggers || 0) > 0 ? 'bad' : 'good'}
+          detail={quality?.mediumFlags !== undefined ? `${fmtInt(quality.mediumFlags)} medium flags` : 'No medium flag count returned'}
+        />
+        <ExecutivePulseCard
+          icon={<Route size={18} />}
+          label="Sales motion"
+          value={pitchRate === null ? 'No sales data' : fmtPct(pitchRate, 0)}
+          tone={pitchRate === null ? 'neutral' : pitchRate >= 0.7 ? 'good' : pitchRate >= 0.45 ? 'warn' : 'bad'}
+          detail={leakageCount === null ? 'Opportunity data unavailable' : `${fmtInt(leakageCount)} unpitched opportunities`}
+        />
+        <ExecutivePulseCard
+          icon={<ClipboardList size={18} />}
+          label="Coaching urgency"
+          value={lowestAnalyst?.avgScore === null || lowestAnalyst?.avgScore === undefined ? 'No analyst data' : fmtDec(lowestAnalyst.avgScore, 1)}
+          tone={toneForAvg(lowestAnalyst?.avgScore)}
+          detail={lowestAnalyst?.agentName ? `${lowestAnalyst.agentName} needs review` : 'No ranked analyst returned'}
+        />
+      </section>
 
       {/* KPI Row */}
       <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -153,6 +205,56 @@ export default function ExecutiveCommandCenter() {
           hint: data.analysts?.length ? `Top avg ${fmtDec(data.analysts[0]?.avgScore, 1) || '—'}` : undefined,
           onClick: () => navigate('/analysts'),
         }))}
+      </section>
+
+      <section className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-5">
+        <InsightCard
+          tone={(quality?.highRiskTriggers || 0) > 0 ? 'bad' : 'good'}
+          icon={<AlertTriangle size={14} />}
+          title="What needs attention today?"
+          description={quality?.highRiskTriggers
+            ? `${fmtInt(quality.highRiskTriggers)} high-risk triggers are active. Start with the risk queue and evidence review.`
+            : 'No high-risk trigger count returned for the selected window.'}
+          meta={topRiskProcess ? `Top process: ${topRiskProcess.process}` : 'Process risk not available'}
+        />
+        <InsightCard
+          tone={trendDelta === null ? 'neutral' : trendDelta >= 0 ? 'good' : 'warn'}
+          icon={trendDelta === null || trendDelta >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+          title="Where are we moving?"
+          description={trendDelta === null
+            ? 'Daily quality movement needs at least two scored trend points.'
+            : `Average quality ${trendDelta >= 0 ? 'improved' : 'declined'} by ${fmtDec(Math.abs(trendDelta), 1)} points from the previous trend point.`}
+          meta={latestTrend?.date ? `Latest: ${latestTrend.date}` : 'No trend date'}
+        />
+        <InsightCard
+          tone={leakageCount === null ? 'neutral' : leakageCount > 0 ? 'warn' : 'good'}
+          icon={<Target size={14} />}
+          title="Where are sales leaking?"
+          description={leakageCount === null
+            ? 'Sales opportunity and pitch counts were not returned.'
+            : leakageCount > 0
+              ? `${fmtInt(leakageCount)} opportunities did not receive a pitch in this window.`
+              : 'Every returned opportunity has a pitch attempt signal.'}
+          meta={pitchRate === null ? 'Pitch rate unavailable' : `Pitch rate ${fmtPct(pitchRate, 0)}`}
+        />
+        <InsightCard
+          tone={toneForAvg(lowestAnalyst?.avgScore)}
+          icon={<Users size={14} />}
+          title="Who needs coaching?"
+          description={lowestAnalyst?.agentName
+            ? `${lowestAnalyst.agentName} is the lowest returned analyst at ${fmtDec(lowestAnalyst.avgScore, 1)} average quality.`
+            : 'No analyst ranking was returned for this filter.'}
+          meta={highestAnalyst?.agentName ? `Top returned: ${highestAnalyst.agentName}` : 'No benchmark'}
+        />
+        <InsightCard
+          tone={topRiskProcess && (topRiskProcess.criticalCalls + topRiskProcess.highRiskCalls) > 0 ? 'bad' : 'neutral'}
+          icon={<ShieldCheck size={14} />}
+          title="Which process has risk?"
+          description={topRiskProcess
+            ? `${topRiskProcess.process} has ${fmtInt(topRiskProcess.criticalCalls)} critical and ${fmtInt(topRiskProcess.highRiskCalls)} high-risk calls.`
+            : 'No process-level risk rows were returned.'}
+          meta="Review process controls"
+        />
       </section>
 
       {/* Trend + Risk by process */}
@@ -353,5 +455,38 @@ function renderAnalystPreview(state: ReturnType<typeof useApi<any>>['state']): J
   return <LoadingSkeleton variant="table" rows={6} />;
 }
 
-const _Activity = Activity; // keep import used
-void _Activity;
+function ExecutivePulseCard({
+  icon,
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  icon: JSX.Element;
+  label: string;
+  value: string;
+  detail: string;
+  tone: 'good' | 'warn' | 'bad' | 'neutral';
+}) {
+  const toneClasses: Record<typeof tone, string> = {
+    good: 'border-good/25 bg-good/10 text-good',
+    warn: 'border-warn/25 bg-warn/10 text-warn',
+    bad: 'border-bad/25 bg-bad/10 text-bad',
+    neutral: 'border-line-subtle bg-elevated/40 text-ink-secondary',
+  };
+
+  return (
+    <div className="rounded-2xl border border-line-subtle bg-panel/80 p-4 shadow-glass backdrop-blur-glass">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">{label}</div>
+          <div className="mt-2 truncate text-2xl font-semibold text-ink-primary">{value}</div>
+        </div>
+        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${toneClasses[tone]}`}>
+          {icon}
+        </div>
+      </div>
+      <p className="mt-3 min-h-[32px] text-xs leading-relaxed text-ink-secondary">{detail}</p>
+    </div>
+  );
+}

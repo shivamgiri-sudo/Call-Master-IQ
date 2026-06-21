@@ -1,4 +1,7 @@
-import { X, ClipboardCopy, AlertOctagon } from 'lucide-react';
+import {
+  X, ClipboardCopy, AlertOctagon, CalendarClock, ClipboardCheck, PhoneCall,
+  ShieldCheck, Target, User2,
+} from 'lucide-react';
 import { useEffect } from 'react';
 import type { RiskQueueRecord } from '../../api/types';
 import { fmtDateTime, fmtDec } from '../../utils/formatters';
@@ -38,6 +41,14 @@ export default function EvidenceDrawer({ record, onClose }: EvidenceDrawerProps)
         record.actionPriority ? `Action: ${record.actionPriority} · ${record.actionOwner || '—'} · SLA ${record.actionSla || '—'}` : '',
       ].filter(Boolean).join('\n')
     : '';
+  const parameterEvidence = record ? [
+    { label: 'Quality band', value: record.qualityBand, tone: qualityBandClass(String(record.qualityBand)) },
+    { label: 'Pitch strength', value: record.pitchStrength, tone: 'pill pill-info' },
+    { label: 'Leakage', value: record.leakage, tone: record.leakage ? 'pill pill-warn' : 'pill' },
+    { label: 'Support status', value: record.supportStatus, tone: 'pill pill-violet' },
+    { label: 'Journey stage', value: record.journeyStage, tone: 'pill' },
+    { label: 'Risk level', value: record.riskLevel || record.riskBucket, tone: riskBucketClass(record.riskBucket) },
+  ].filter(item => item.value && item.value !== 'N/A') : [];
 
   const onCopySummary = () => {
     if (!safeSummary) return;
@@ -55,7 +66,7 @@ export default function EvidenceDrawer({ record, onClose }: EvidenceDrawerProps)
         aria-hidden
       />
       <aside
-        className={`fixed inset-y-0 right-0 z-50 w-full max-w-md transform border-l border-line-subtle bg-panel/95 shadow-glass-lg backdrop-blur-glass transition-transform ${
+        className={`fixed inset-y-0 right-0 z-50 w-full max-w-2xl transform border-l border-line-subtle bg-panel/95 shadow-glass-lg backdrop-blur-glass transition-transform ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
         role="dialog"
@@ -82,6 +93,15 @@ export default function EvidenceDrawer({ record, onClose }: EvidenceDrawerProps)
             </header>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              <section className="rounded-2xl border border-line-subtle bg-elevated/35 p-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <MetaItem icon={<PhoneCall size={14} />} label="Call ID" value={record.id} />
+                  <MetaItem icon={<CalendarClock size={14} />} label="Call date" value={fmtDateTime(record.date)} />
+                  <MetaItem icon={<User2 size={14} />} label="Analyst" value={record.analyst || '—'} />
+                  <MetaItem icon={<ShieldCheck size={14} />} label="Mobile" value={maskMobile(record.mobile) || '—'} />
+                </div>
+              </section>
+
               <section className="space-y-2">
                 <h4 className="text-[11px] uppercase tracking-wider text-ink-muted">Overview</h4>
                 <div className="grid grid-cols-2 gap-3">
@@ -106,15 +126,46 @@ export default function EvidenceDrawer({ record, onClose }: EvidenceDrawerProps)
               </section>
 
               <section className="space-y-2">
+                <h4 className="text-[11px] uppercase tracking-wider text-ink-muted">Parameter Evidence</h4>
+                {parameterEvidence.length ? (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {parameterEvidence.map(item => (
+                      <div key={item.label} className="rounded-xl border border-line-subtle bg-elevated/35 p-3">
+                        <div className="mb-2 text-[10px] uppercase tracking-wider text-ink-muted">{item.label}</div>
+                        <span className={item.tone}>{String(item.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-line-subtle bg-elevated/35 p-3 text-xs text-ink-muted">
+                    No parameter-level evidence was returned for this call.
+                  </div>
+                )}
+              </section>
+
+              <section className="space-y-2">
                 <h4 className="text-[11px] uppercase tracking-wider text-ink-muted">Recommended Action</h4>
-                <div className="rounded-xl border border-line-subtle bg-elevated/40 p-3 text-sm text-ink-secondary">
+                <div className="rounded-xl border border-line-subtle bg-elevated/40 p-4 text-sm text-ink-secondary">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-ink-primary">{record.actionOwner || '—'}</span>
+                    <span className="inline-flex items-center gap-2 font-medium text-ink-primary">
+                      <ClipboardCheck size={15} className="text-good" />
+                      {record.actionOwner || 'Review owner not returned'}
+                    </span>
                     <span className="pill pill-info">{record.actionSla || 'Weekly Review'}</span>
                   </div>
                   {record.insight ? (
                     <p className="mt-2 text-xs leading-relaxed text-ink-muted">{record.insight}</p>
-                  ) : null}
+                  ) : (
+                    <p className="mt-2 text-xs leading-relaxed text-ink-muted">
+                      Review the masked evidence, validate the QA parameter, and assign coaching only when the call context supports it.
+                    </p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className={priorityClass(record.actionPriority)}>{record.actionPriority || 'Monitor'}</span>
+                    <span className="pill">
+                      <Target size={11} className="inline -translate-y-0.5" /> Copy-safe summary available
+                    </span>
+                  </div>
                 </div>
               </section>
 
@@ -146,6 +197,20 @@ export default function EvidenceDrawer({ record, onClose }: EvidenceDrawerProps)
         ) : null}
       </aside>
     </>
+  );
+}
+
+function MetaItem({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-line-subtle bg-panel/65 text-ink-secondary">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-[10px] uppercase tracking-wider text-ink-muted">{label}</div>
+        <div className="mt-0.5 truncate text-sm text-ink-primary">{value}</div>
+      </div>
+    </div>
   );
 }
 

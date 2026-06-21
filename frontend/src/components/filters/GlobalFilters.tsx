@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Database, RotateCcw } from 'lucide-react';
+import { Clock3, Database, RotateCcw, X } from 'lucide-react';
 import { getFilterOptions } from '../../api/analyticsApi';
 import type { FilterOption, FilterOptionsData } from '../../api/types';
 import { useAuth } from '../../context/AuthContext';
@@ -23,6 +23,7 @@ export default function GlobalFilters() {
   const { filters, setFilter, setFilters, resetFilters } = useFilters();
   const [options, setOptions] = useState<FilterOptionsData | null>(null);
   const [optionsError, setOptionsError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string>(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const branchLocked = role === 'BRANCH_MANAGER' && Boolean(user?.branch_short_name);
   const processLocked = role === 'PROCESS_MANAGER' && Boolean(user?.process_name);
   const teamLocked = role === 'TEAM_LEADER' && Boolean(user?.team_id);
@@ -35,6 +36,7 @@ export default function GlobalFilters() {
       if (result.kind === 'ok') {
         setOptions(result.data);
         setOptionsError(null);
+        setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       } else if (result.kind === 'error') {
         setOptionsError(result.message);
       }
@@ -61,14 +63,28 @@ export default function GlobalFilters() {
     if (Object.keys(locked).length) setFilters(locked);
   };
 
+  const activeChips = [
+    { key: 'client_id', label: 'Client', value: filters.client_id, locked: true },
+    { key: 'process_name', label: 'Process', value: filters.process_name, locked: processLocked },
+    { key: 'business_lob', label: 'LOB', value: filters.business_lob, locked: false },
+    { key: 'branch_short_name', label: 'Branch', value: filters.branch_short_name, locked: branchLocked },
+    { key: 'source_type', label: 'Source', value: filters.source_type, locked: false },
+    { key: 'analyst_id', label: 'Analyst', value: filters.analyst_id, locked: selfLocked },
+    { key: 'team_id', label: 'Team', value: filters.team_id, locked: teamLocked },
+  ].filter(chip => chip.value);
+
   return (
-    <div className="mb-6 rounded-lg border border-line-subtle bg-panel/75 p-4 shadow-glass backdrop-blur-glass">
+    <div className="mb-6 rounded-2xl border border-line-subtle bg-panel/75 p-4 shadow-glass backdrop-blur-glass">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs text-ink-muted">
           <Database size={14} className="text-blue" />
           <span className="font-medium uppercase tracking-wider">Live Call Master Filters</span>
           <span className="rounded-full border border-line-subtle bg-elevated/40 px-2 py-0.5 text-[10px] text-ink-secondary">{role}</span>
           {optionsError ? <span className="text-warn">Options unavailable, manual entry enabled</span> : null}
+        </div>
+        <div className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-ink-muted">
+          <Clock3 size={12} className="text-good" />
+          Updated {lastUpdated}
         </div>
       </div>
 
@@ -152,6 +168,29 @@ export default function GlobalFilters() {
           Reset
         </button>
       </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line-subtle/70 pt-3">
+        <span className="text-[10px] uppercase tracking-wider text-ink-muted">Active</span>
+        <span className="rounded-full border border-line-subtle bg-elevated/35 px-2.5 py-1 text-[11px] text-ink-secondary">
+          {filters.from} to {filters.to}
+        </span>
+        {activeChips.length ? activeChips.map(chip => (
+          <button
+            key={chip.key}
+            type="button"
+            disabled={chip.locked}
+            onClick={() => !chip.locked && setFilter(chip.key as keyof typeof filters, '')}
+            className="inline-flex max-w-[220px] items-center gap-1.5 rounded-full border border-line-subtle bg-elevated/35 px-2.5 py-1 text-[11px] text-ink-secondary hover:border-line-strong hover:text-ink-primary disabled:cursor-not-allowed disabled:opacity-70"
+            title={chip.locked ? 'Scope locked by role' : `Clear ${chip.label}`}
+          >
+            <span className="text-ink-muted">{chip.label}</span>
+            <span className="truncate">{chip.value}</span>
+            {!chip.locked ? <X size={11} /> : null}
+          </button>
+        )) : (
+          <span className="text-xs text-ink-muted">All permitted scope</span>
+        )}
       </div>
     </div>
   );

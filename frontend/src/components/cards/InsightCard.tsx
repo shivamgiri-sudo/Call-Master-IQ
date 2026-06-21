@@ -38,7 +38,7 @@ export default function InsightCard({
     <Wrapper
       onClick={onClick}
       className={[
-        'glass card-hover relative w-full overflow-hidden p-4 text-left focus-ring',
+        'glass card-hover relative w-full overflow-hidden p-4 text-left focus-ring transition-colors hover:bg-elevated/25',
         TONE_BORDER[tone],
         onClick ? 'cursor-pointer' : '',
       ].join(' ')}

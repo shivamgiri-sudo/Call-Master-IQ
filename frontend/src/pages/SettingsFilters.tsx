@@ -1,4 +1,4 @@
-import { Activity, Database, ShieldCheck, User2 } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, Database, LockKeyhole, ShieldCheck, User2 } from 'lucide-react';
 import PageHeader from '../layout/PageHeader';
 import GlobalFilters from '../components/filters/GlobalFilters';
 import { useAuth } from '../context/AuthContext';
@@ -42,14 +42,19 @@ export default function SettingsFilters() {
           </header>
           <RuntimeValidationBadge />
           <p className="mt-3 text-xs leading-relaxed text-ink-muted">
-            Operator-side gates remain pending until the following runbook steps
-            produce evidence:
+            Local runtime gates are passed from the accepted validation evidence.
+            Public release remains blocked until the remaining safety gates close.
           </p>
-          <ul className="mt-3 space-y-1.5 text-xs text-ink-secondary">
-            <li>• <span className="font-mono text-ink-primary">npm run phase2:describe</span> → column verification</li>
-            <li>• <span className="font-mono text-ink-primary">npm run dev</span> + <span className="font-mono text-ink-primary">npm run phase2:smoke</span> → 15-endpoint smoke</li>
-            <li>• <span className="font-mono text-ink-primary">docs/MVP_FINAL_VALIDATION_RUNBOOK.md</span> §9 → cache + date-range evidence</li>
-          </ul>
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Gate label="Backend validation" status="passed" />
+            <Gate label="Frontend validation" status="passed" />
+            <Gate label="Analytics endpoints" status="15/15 passed" />
+            <Gate label="Auth and role guard" status="passed" />
+            <Gate label="Audit advisories" status="pending" blocked />
+            <Gate label="Secret rotation" status="pending" blocked />
+            <Gate label="History cleanup" status="pending" blocked />
+            <Gate label="Public release" status="blocked" blocked />
+          </div>
         </div>
 
         <div className="glass p-5">
@@ -101,13 +106,24 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
 }
 
 function RuntimeValidationBadge() {
-  // Status is hardcoded to "pending" until the operator runs the runbook
-  // and the backend smoke gate is closed. UI does not self-promote to "passed"
-  // — that is a backend truth we never fabricate.
   return (
-    <div className="inline-flex items-center gap-2 rounded-xl border border-warn/30 bg-warn/10 px-3 py-2">
-      <span className="h-2 w-2 animate-pulse-soft rounded-full bg-warn" />
-      <span className="text-xs font-semibold uppercase tracking-wider text-warn">Runtime validation pending</span>
+    <div className="inline-flex items-center gap-2 rounded-xl border border-good/30 bg-good/10 px-3 py-2">
+      <CheckCircle2 size={14} className="text-good" />
+      <span className="text-xs font-semibold uppercase tracking-wider text-good">Runtime validation passed locally</span>
+    </div>
+  );
+}
+
+function Gate({ label, status, blocked }: { label: string; status: string; blocked?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-line-subtle bg-elevated/35 px-3 py-2">
+      <span className="text-xs text-ink-secondary">{label}</span>
+      <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${
+        blocked ? 'border-warn/25 bg-warn/10 text-warn' : 'border-good/25 bg-good/10 text-good'
+      }`}>
+        {blocked ? <AlertTriangle size={11} /> : <CheckCircle2 size={11} />}
+        {status}
+      </span>
     </div>
   );
 }

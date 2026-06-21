@@ -67,17 +67,13 @@ export function getDefaultRouteForRole(role: AppRole): string {
   switch (role) {
     case 'HO_QA':
     case 'QUALITY_MANAGER':
+    case 'QUALITY_ANALYST':
       return '/quality';
-    case 'OPERATIONS_MANAGER':
-      return '/sales-funnel';
     case 'TEAM_LEADER':
       return '/analysts';
-    case 'QUALITY_ANALYST':
-      return '/risk';
     case 'TRAINER':
       return '/tni';
     case 'HR_ADMIN':
-      return '/admin';
     case 'PAYROLL_ADMIN':
       return '/settings';
     case 'ANALYST':
@@ -85,6 +81,7 @@ export function getDefaultRouteForRole(role: AppRole): string {
     case 'SUPER_ADMIN':
     case 'CEO':
     case 'HO_OPERATIONS':
+    case 'OPERATIONS_MANAGER':
     case 'PROCESS_MANAGER':
     case 'BRANCH_MANAGER':
     case 'VIEWER':

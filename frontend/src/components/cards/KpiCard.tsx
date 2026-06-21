@@ -56,7 +56,7 @@ export default function KpiCard({
     <Wrapper
       onClick={onClick}
       className={[
-        'glass card-hover relative w-full overflow-hidden p-5 text-left focus-ring',
+        'glass card-hover relative w-full overflow-hidden p-5 text-left focus-ring transition-colors hover:bg-elevated/25',
         TONE_RING[tone],
         interactive ? 'cursor-pointer' : '',
       ].join(' ')}
@@ -64,7 +64,7 @@ export default function KpiCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[11px] uppercase tracking-wider text-ink-muted">{label}</div>
-          <div className={`mt-2 text-3xl font-semibold leading-none ${TONE_VALUE[tone]}`}>
+          <div className={`mt-2 text-2xl font-semibold leading-none md:text-3xl ${TONE_VALUE[tone]}`}>
             {value}
           </div>
         </div>
